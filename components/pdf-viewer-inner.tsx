@@ -45,6 +45,7 @@ export function PDFViewerInner({
 }: PDFViewerInnerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const renderTaskRef = useRef<any>(null);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -193,6 +194,16 @@ export function PDFViewerInner({
   const renderPage = useCallback(async () => {
     if (!pdfDoc || !canvasRef.current) return;
 
+    // Cancel any ongoing render
+    if (renderTaskRef.current) {
+      try {
+        await renderTaskRef.current.cancel();
+      } catch {
+        // Ignore cancel errors
+      }
+      renderTaskRef.current = null;
+    }
+
     try {
       const page = await pdfDoc.getPage(currentPage);
       const canvas = canvasRef.current;
@@ -209,9 +220,14 @@ export function PDFViewerInner({
         viewport,
       };
 
-      await page.render(renderContext).promise;
-    } catch (err) {
-      console.error("[v0] Error rendering page:", err);
+      renderTaskRef.current = page.render(renderContext);
+      await renderTaskRef.current.promise;
+      renderTaskRef.current = null;
+    } catch (err: any) {
+      // Ignore cancelled render errors
+      if (err?.name !== 'RenderingCancelledException') {
+        console.error("[v0] Error rendering page:", err);
+      }
     }
   }, [pdfDoc, currentPage, scale, rotation]);
 
