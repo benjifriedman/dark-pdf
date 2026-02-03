@@ -137,14 +137,14 @@ export default function Home() {
                 <Settings2 className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-80 bg-card overflow-y-auto">
+            <SheetContent side="right" className="w-80 bg-card flex flex-col overflow-hidden">
               <SheetHeader>
                 <SheetTitle className="text-foreground">Settings</SheetTitle>
                 <SheetDescription className="text-muted-foreground">
                   Configure your PDF viewing experience
                 </SheetDescription>
               </SheetHeader>
-              <div className="mt-6 space-y-8">
+              <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-8 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 <PDFInput onLoadPDF={handleLoadPDF} />
                 <div className="border-t border-border pt-6">
                   <FilterControls
@@ -178,7 +178,7 @@ export default function Home() {
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar - Desktop */}
         {sidebarOpen && (
-          <aside className="hidden w-80 flex-shrink-0 overflow-y-auto border-r border-border bg-card p-4 lg:block">
+          <aside className="hidden w-80 flex-shrink-0 overflow-y-auto border-r border-border bg-card p-6 lg:block scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             <div className="space-y-8">
               <PDFInput onLoadPDF={handleLoadPDF} />
               <div className="border-t border-border pt-6">
