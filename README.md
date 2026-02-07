@@ -2,6 +2,8 @@
 
 A web app for reading PDFs and images comfortably in dark mode with customizable filters.
 
+![Dark PDF Screenshot](./public/dark-pdf.jpg)
+
 ## Features
 
 - **Dark Mode Filters** - Adjustable inversion, brightness, contrast, and sepia
