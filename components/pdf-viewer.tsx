@@ -19,10 +19,23 @@ interface PDFViewerProps {
   pdfSource: string | ArrayBuffer | null;
   pdfFileName: string | null;
   darkMode: boolean;
+  smartDarkMode: boolean;
   inversion: number;
   brightness: number;
   contrast: number;
   sepia: number;
+  isZenMode?: boolean;
+  showZenControls?: boolean;
+  initialPage?: number;
+  initialScale?: number | null;
+  onPageChange?: (current: number, total: number) => void;
+  onScaleChange?: (scale: number) => void;
+  onViewerReady?: (controls: {
+    goToPage: (page: number) => void;
+    zoomIn: () => void;
+    zoomOut: () => void;
+    startOCR: () => void;
+  }) => void;
 }
 
 export function PDFViewer(props: PDFViewerProps) {

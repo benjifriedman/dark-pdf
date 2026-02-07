@@ -4,11 +4,13 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Sparkles } from "lucide-react";
 
 interface FilterControlsProps {
   darkMode: boolean;
   setDarkMode: (value: boolean) => void;
+  smartDarkMode: boolean;
+  setSmartDarkMode: (value: boolean) => void;
   inversion: number;
   setInversion: (value: number) => void;
   brightness: number;
@@ -22,6 +24,8 @@ interface FilterControlsProps {
 export function FilterControls({
   darkMode,
   setDarkMode,
+  smartDarkMode,
+  setSmartDarkMode,
   inversion,
   setInversion,
   brightness,
@@ -63,6 +67,29 @@ export function FilterControls({
           onCheckedChange={setDarkMode}
         />
       </div>
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="smart-dark-mode" className="text-sm text-foreground">
+            Smart Dark Mode
+          </Label>
+          <Sparkles className="h-3 w-3 text-primary" />
+        </div>
+        <Switch
+          id="smart-dark-mode"
+          checked={smartDarkMode}
+          onCheckedChange={setSmartDarkMode}
+          disabled={!darkMode}
+        />
+      </div>
+
+      {smartDarkMode && darkMode && (
+        <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
+          <p className="text-xs text-primary">
+            Smart Dark Mode preserves images and diagrams in their original colors while inverting text and backgrounds.
+          </p>
+        </div>
+      )}
 
       <div className="space-y-4 opacity-100 transition-opacity" style={{ opacity: darkMode ? 1 : 0.5 }}>
         <div className="space-y-2">
@@ -128,7 +155,7 @@ export function FilterControls({
 
       <div className="rounded-md border border-border bg-muted/50 p-3">
         <p className="text-xs text-muted-foreground">
-          Tip: Adjust the sliders to find the perfect balance for your eyes. A slight sepia tone can reduce eye strain during long reading sessions.
+          Tip: Use <kbd className="rounded bg-muted px-1 py-0.5 text-[10px]">⌘K</kbd> to open the command palette for quick access to all features.
         </p>
       </div>
     </div>
