@@ -22,6 +22,7 @@ interface ImageViewerProps {
   contrast: number;
   sepia: number;
   isZenMode?: boolean;
+  stretchMode?: boolean;
 }
 
 export function ImageViewer({
@@ -34,6 +35,7 @@ export function ImageViewer({
   contrast,
   sepia,
   isZenMode = false,
+  stretchMode = false,
 }: ImageViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -305,7 +307,7 @@ export function ImageViewer({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
       >
-        <div className="flex justify-center">
+        <div className={stretchMode ? "flex justify-center" : "inline-flex justify-center min-w-full"}>
           <img
             ref={imageRef}
             src={imageUrl}
@@ -316,6 +318,7 @@ export function ImageViewer({
               width: imageSize.width ? imageSize.width * scale : 'auto',
               height: imageSize.height ? imageSize.height * scale : 'auto',
               transform: `rotate(${rotation}deg)`,
+              ...(stretchMode ? {} : { maxWidth: 'none' }),
             }}
             className="rounded-sm shadow-lg"
             draggable={false}

@@ -57,6 +57,7 @@ function HomeContent() {
   const [imageSource, setImageSource] = useState<ArrayBuffer | null>(null);
   const [imageFileName, setImageFileName] = useState<string | null>(null);
   const [fileType, setFileType] = useState<'pdf' | 'image' | null>(null);
+  const [stretchMode, setStretchMode] = useState(false);
   const [darkMode, setDarkMode] = useState(defaultFilters.darkMode);
   const [smartDarkMode, setSmartDarkMode] = useState(defaultFilters.smartDarkMode);
   const [inversion, setInversion] = useState(defaultFilters.inversion);
@@ -332,6 +333,18 @@ function HomeContent() {
                   <div className="border-t border-border pt-6">
                     <PresetManager inversion={inversion} brightness={brightness} contrast={contrast} sepia={sepia} darkMode={darkMode} smartDarkMode={smartDarkMode} onApplyPreset={handleApplyPreset} />
                   </div>
+                  {fileType === 'image' && (
+                    <div className="border-t border-border pt-6">
+                      <button
+                        onClick={() => setStretchMode(!stretchMode)}
+                        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        title="Stretch Mode (Easter Egg)"
+                      >
+                        <span className="text-base">🥚</span>
+                        <span>{stretchMode ? "Disable" : "Enable"} Stretch Mode</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </SheetContent>
             </Sheet>
@@ -350,6 +363,18 @@ function HomeContent() {
               <div className="border-t border-border pt-6">
                 <PresetManager inversion={inversion} brightness={brightness} contrast={contrast} sepia={sepia} darkMode={darkMode} smartDarkMode={smartDarkMode} onApplyPreset={handleApplyPreset} />
               </div>
+              {fileType === 'image' && (
+                <div className="border-t border-border pt-6">
+                  <button
+                    onClick={() => setStretchMode(!stretchMode)}
+                    className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    title="Stretch Mode (Easter Egg)"
+                  >
+                    <span className="text-base">🥚</span>
+                    <span>{stretchMode ? "Disable" : "Enable"} Stretch Mode</span>
+                  </button>
+                </div>
+              )}
             </div>
           </aside>
         )}
@@ -366,6 +391,7 @@ function HomeContent() {
               contrast={contrast}
               sepia={sepia}
               isZenMode={isZenMode}
+              stretchMode={stretchMode}
             />
           ) : (
             <PDFViewer
