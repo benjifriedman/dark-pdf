@@ -71,7 +71,7 @@ export function FilterControls({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Label htmlFor="smart-dark-mode" className="text-sm text-foreground">
-            Smart Dark Mode
+            Color Preserve Mode
           </Label>
           <Sparkles className="h-3 w-3 text-primary" />
         </div>
@@ -82,14 +82,6 @@ export function FilterControls({
           disabled={!darkMode}
         />
       </div>
-
-      {smartDarkMode && darkMode && (
-        <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
-          <p className="text-xs text-primary">
-            Smart Dark Mode preserves images and diagrams in their original colors while inverting text and backgrounds.
-          </p>
-        </div>
-      )}
 
       <div className="space-y-4 opacity-100 transition-opacity" style={{ opacity: darkMode ? 1 : 0.5 }}>
         <div className="space-y-2">

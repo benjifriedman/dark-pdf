@@ -538,10 +538,10 @@ export function PDFViewerInner({
   const getFilterStyle = (): React.CSSProperties => {
     if (!darkMode) return {};
     if (smartDarkMode) {
-      // Smart dark mode: use hue-rotate(180deg) after invert to preserve colors better
-      // This inverts luminosity but keeps hues roughly the same
+      // Color preserve mode: invert + hue-rotate(180deg) preserves original hues
+      // Add slight saturation boost to compensate for color loss during inversion
       return { 
-        filter: `invert(${inversion}%) hue-rotate(180deg) brightness(${brightness}%) contrast(${contrast}%) sepia(${sepia}%)` 
+        filter: `invert(${inversion}%) hue-rotate(180deg) saturate(1.1)` 
       };
     }
     return { filter: `invert(${inversion}%) brightness(${brightness}%) contrast(${contrast}%) sepia(${sepia}%)` };
@@ -596,8 +596,6 @@ export function PDFViewerInner({
   const applyFilters = (imageData: ImageData, invert: number, bright: number, contr: number, sep: number, smart: boolean): ImageData => {
     const data = imageData.data;
     const invertRatio = invert / 100;
-    const brightnessRatio = bright / 100;
-    const contrastFactor = (contr / 100 - 0.5) * 2;
 
     for (let i = 0; i < data.length; i += 4) {
       let r = data[i], g = data[i + 1], b = data[i + 2];
@@ -608,6 +606,7 @@ export function PDFViewerInner({
       b = b + (255 - 2 * b) * invertRatio;
 
       // For smart mode, apply hue rotation (180 degrees) to preserve colors
+      // Skip brightness/contrast/sepia to maintain color accuracy
       if (smart) {
         // Convert to HSL, rotate hue by 180, convert back
         const max = Math.max(r, g, b) / 255;
@@ -642,26 +641,30 @@ export function PDFViewerInner({
           g = hue2rgb(p, q, h) * 255;
           b = hue2rgb(p, q, h - 1/3) * 255;
         }
+      } else {
+        // Normal dark mode: apply brightness, contrast, sepia
+        const brightnessRatio = bright / 100;
+        const contrastFactor = (contr / 100 - 0.5) * 2;
+
+        // Brightness
+        r *= brightnessRatio;
+        g *= brightnessRatio;
+        b *= brightnessRatio;
+
+        // Contrast
+        r = ((r / 255 - 0.5) * (1 + contrastFactor) + 0.5) * 255;
+        g = ((g / 255 - 0.5) * (1 + contrastFactor) + 0.5) * 255;
+        b = ((b / 255 - 0.5) * (1 + contrastFactor) + 0.5) * 255;
+
+        // Sepia
+        const sepiaRatio = sep / 100;
+        const sr = r * 0.393 + g * 0.769 + b * 0.189;
+        const sg = r * 0.349 + g * 0.686 + b * 0.168;
+        const sb = r * 0.272 + g * 0.534 + b * 0.131;
+        r = r + (sr - r) * sepiaRatio;
+        g = g + (sg - g) * sepiaRatio;
+        b = b + (sb - b) * sepiaRatio;
       }
-
-      // Brightness
-      r *= brightnessRatio;
-      g *= brightnessRatio;
-      b *= brightnessRatio;
-
-      // Contrast
-      r = ((r / 255 - 0.5) * (1 + contrastFactor) + 0.5) * 255;
-      g = ((g / 255 - 0.5) * (1 + contrastFactor) + 0.5) * 255;
-      b = ((b / 255 - 0.5) * (1 + contrastFactor) + 0.5) * 255;
-
-      // Sepia
-      const sepiaRatio = sep / 100;
-      const sr = r * 0.393 + g * 0.769 + b * 0.189;
-      const sg = r * 0.349 + g * 0.686 + b * 0.168;
-      const sb = r * 0.272 + g * 0.534 + b * 0.131;
-      r = r + (sr - r) * sepiaRatio;
-      g = g + (sg - g) * sepiaRatio;
-      b = b + (sb - b) * sepiaRatio;
 
       data[i] = Math.max(0, Math.min(255, r));
       data[i + 1] = Math.max(0, Math.min(255, g));

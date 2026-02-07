@@ -105,7 +105,7 @@ export function CommandPalette({
           </CommandItem>
           <CommandItem onSelect={() => handleSelect(onToggleSmartDarkMode)}>
             <Sparkles className="mr-2 h-4 w-4" />
-            <span>{smartDarkMode ? "Disable" : "Enable"} Smart Dark Mode</span>
+            <span>{smartDarkMode ? "Disable" : "Enable"} Color Preserve Mode</span>
           </CommandItem>
           <CommandItem onSelect={() => handleSelect(onToggleZenMode)}>
             <Maximize className="mr-2 h-4 w-4" />

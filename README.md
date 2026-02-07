@@ -7,7 +7,7 @@ A web app for reading PDFs and images comfortably in dark mode with customizable
 ## Features
 
 - **Dark Mode Filters** - Adjustable inversion, brightness, contrast, and sepia
-- **Smart Dark Mode** - Preserves image colors while inverting text/backgrounds using hue rotation
+- **Color Preserve Mode** - Preserves image hues while inverting luminosity using hue rotation
 - **PDF & Image Support** - Load PDFs or images (PNG, JPG, WEBP, GIF, BMP)
 - **Export with Filters** - Save files with your filter settings applied (same format as input)
 - **Presets** - Save and load your favorite filter configurations (collapsible panel)
@@ -47,7 +47,7 @@ Share your filter configuration via URL:
 | Param | Description |
 |-------|-------------|
 | dm | Dark mode (1/0) |
-| sdm | Smart dark mode (1/0) |
+| sdm | Color preserve mode (1/0) |
 | inv | Inversion (0-100) |
 | br | Brightness (0-300) |
 | ct | Contrast (0-300) |
