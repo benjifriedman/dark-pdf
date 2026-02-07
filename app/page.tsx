@@ -77,6 +77,7 @@ function HomeContent() {
   const [zoomInFn, setZoomInFn] = useState<(() => void) | null>(null);
   const [zoomOutFn, setZoomOutFn] = useState<(() => void) | null>(null);
   const [startOCRFn, setStartOCRFn] = useState<(() => void) | null>(null);
+  const [scrollMode, setScrollMode] = useState(false);
 
   const { saveSession, loadSession } = useSessionPersistence();
 
@@ -273,10 +274,10 @@ function HomeContent() {
   };
 
   const resetFilters = () => {
-    setInversion(90);
-    setBrightness(90);
-    setContrast(90);
-    setSepia(10);
+    setInversion(defaultFilters.inversion);
+    setBrightness(defaultFilters.brightness);
+    setContrast(defaultFilters.contrast);
+    setSepia(defaultFilters.sepia);
   };
 
   const handlePageChange = useCallback((current: number, total: number) => {
@@ -444,11 +445,12 @@ function HomeContent() {
               contrast={contrast}
               sepia={sepia}
               isZenMode={isZenMode}
-              showZenControls={showZenControls}
               initialPage={currentPage}
               initialScale={viewerScale}
+              scrollMode={scrollMode}
               onPageChange={handlePageChange}
               onScaleChange={handleScaleChange}
+              onScrollModeChange={setScrollMode}
               onViewerReady={handleViewerReady}
             />
           )}

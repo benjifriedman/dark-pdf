@@ -15,6 +15,8 @@ import {
   MoveHorizontal,
   MoveVertical,
   ScanText,
+  Rows3,
+  Square,
 } from "lucide-react";
 
 const PDFJS_VERSION = "4.4.168";
@@ -30,11 +32,12 @@ interface PDFViewerInnerProps {
   contrast: number;
   sepia: number;
   isZenMode?: boolean;
-  showZenControls?: boolean;
   initialPage?: number;
   initialScale?: number | null;
+  scrollMode?: boolean;
   onPageChange?: (current: number, total: number) => void;
   onScaleChange?: (scale: number) => void;
+  onScrollModeChange?: (scrollMode: boolean) => void;
   onViewerReady?: (controls: {
     goToPage: (page: number) => void;
     zoomIn: () => void;
@@ -59,15 +62,18 @@ export function PDFViewerInner({
   contrast,
   sepia,
   isZenMode = false,
-  showZenControls = false,
   initialPage = 1,
   initialScale = null,
+  scrollMode = false,
   onPageChange,
   onScaleChange,
+  onScrollModeChange,
   onViewerReady,
 }: PDFViewerInnerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const pageRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const renderTaskRef = useRef<any>(null);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(initialPage);
@@ -85,21 +91,33 @@ export function PDFViewerInner({
   const pageInputRef = useRef<HTMLInputElement>(null);
   const [linkAnnotations, setLinkAnnotations] = useState<Array<{
     rect: { x: number; y: number; width: number; height: number };
-    dest: number | null; // page number for internal links
-    url: string | null;  // URL for external links
+    dest: number | null;
+    url: string | null;
   }>>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
   const [canPan, setCanPan] = useState(false);
+  const [renderedPages, setRenderedPages] = useState<Set<number>>(new Set());
+  const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null);
 
   const { isProcessing: isOCRProcessing, progress: ocrProgress, text: ocrText, runOCR, clearResult: clearOCR } = useOCR();
 
+  // Scroll to page helper (for scroll mode)
+  const scrollToPageRef = useRef<(pageNum: number) => void>(() => {});
+  
   // Expose controls to parent
   useEffect(() => {
     if (onViewerReady) {
       onViewerReady({
         goToPage: (page: number) => {
-          if (page >= 1 && page <= totalPages) { clearOCR(); setCurrentPage(page); }
+          if (page >= 1 && page <= totalPages) { 
+            clearOCR(); 
+            setCurrentPage(page);
+            if (scrollMode) {
+              // Use setTimeout to allow state update before scrolling
+              setTimeout(() => scrollToPageRef.current(page), 0);
+            }
+          }
         },
         zoomIn: () => setScale((prev) => Math.min((prev || 1) + 0.2, 9)),
         zoomOut: () => setScale((prev) => Math.max((prev || 1) - 0.2, 0.01)),
@@ -108,7 +126,7 @@ export function PDFViewerInner({
         },
       });
     }
-  }, [onViewerReady, totalPages, runOCR, clearOCR]);
+  }, [onViewerReady, totalPages, runOCR, clearOCR, scrollMode]);
 
   // Notify parent of page changes
   useEffect(() => {
@@ -187,6 +205,12 @@ export function PDFViewerInner({
         pdf = await window.pdfjsLib.getDocument({ data }).promise;
       }
       const fitScale = initialScale || await calculateFitScale(pdf);
+      
+      // Get first page dimensions for placeholder sizing in scroll mode
+      const firstPage = await pdf.getPage(1);
+      const viewport = firstPage.getViewport({ scale: fitScale, rotation: 0 });
+      setPageDimensions({ width: viewport.width, height: viewport.height });
+      
       setPdfDoc(pdf);
       setTotalPages(pdf.numPages);
       setCurrentPage(Math.min(initialPage, pdf.numPages));
@@ -281,10 +305,150 @@ export function PDFViewerInner({
     }
   }, [pdfDoc, currentPage, scale, rotation]);
 
-  useEffect(() => { renderPage(); }, [renderPage]);
+  useEffect(() => { if (!scrollMode) renderPage(); }, [renderPage, scrollMode]);
 
-  const goToPrevPage = () => { if (currentPage > 1) { clearOCR(); setCurrentPage(currentPage - 1); } };
-  const goToNextPage = () => { if (currentPage < totalPages) { clearOCR(); setCurrentPage(currentPage + 1); } };
+  // Track which pages are currently being rendered to prevent concurrent renders
+  const renderingPages = useRef<Set<number>>(new Set());
+
+  // Render a specific page to a canvas (for scroll mode)
+  const renderPageToCanvas = useCallback(async (pageNum: number, canvas: HTMLCanvasElement) => {
+    if (!pdfDoc || !scale) return;
+    
+    // Prevent concurrent renders on the same page
+    if (renderingPages.current.has(pageNum)) return;
+    renderingPages.current.add(pageNum);
+    
+    try {
+      const page = await pdfDoc.getPage(pageNum);
+      const context = canvas.getContext("2d");
+      if (!context) {
+        renderingPages.current.delete(pageNum);
+        return;
+      }
+      const viewport = page.getViewport({ scale, rotation });
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+      await page.render({ canvasContext: context, viewport }).promise;
+      setRenderedPages(prev => new Set([...prev, pageNum]));
+    } catch (err: any) {
+      if (err?.name !== 'RenderingCancelledException') console.error("Error rendering page:", err);
+    } finally {
+      renderingPages.current.delete(pageNum);
+    }
+  }, [pdfDoc, scale, rotation]);
+
+  // Lazy load pages using IntersectionObserver
+  useEffect(() => {
+    if (!scrollMode || !pdfDoc || !scale || totalPages === 0) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const pageNum = parseInt(entry.target.getAttribute('data-page') || '0', 10);
+            if (pageNum > 0) {
+              const canvas = pageRefs.current.get(pageNum);
+              if (canvas) {
+                // Always render when page comes into view (handles browser clearing canvas)
+                renderPageToCanvas(pageNum, canvas);
+              }
+            }
+          }
+        });
+      },
+      {
+        root: scrollContainerRef.current,
+        rootMargin: '200px 0px', // Pre-load pages 200px before they're visible
+        threshold: 0,
+      }
+    );
+    
+    // Observe all page containers
+    pageRefs.current.forEach((canvas, pageNum) => {
+      canvas.setAttribute('data-page', String(pageNum));
+      observer.observe(canvas);
+    });
+    
+    return () => observer.disconnect();
+  }, [scrollMode, pdfDoc, scale, totalPages, renderPageToCanvas]);
+
+  // Clear rendered pages when switching modes or scale changes
+  useEffect(() => {
+    setRenderedPages(new Set());
+    renderingPages.current.clear();
+  }, [scrollMode, scale, rotation]);
+
+  // Update page dimensions when scale changes
+  useEffect(() => {
+    if (!pdfDoc || !scale) return;
+    const updateDimensions = async () => {
+      const firstPage = await pdfDoc.getPage(1);
+      const viewport = firstPage.getViewport({ scale, rotation });
+      setPageDimensions({ width: viewport.width, height: viewport.height });
+    };
+    updateDimensions();
+  }, [pdfDoc, scale, rotation]);
+
+  // Track current page in scroll mode based on scroll position
+  useEffect(() => {
+    if (!scrollMode || !scrollContainerRef.current) return;
+    
+    const container = scrollContainerRef.current;
+    const handleScroll = () => {
+      const containerRect = container.getBoundingClientRect();
+      const containerCenter = containerRect.top + containerRect.height / 2;
+      
+      let closestPage = 1;
+      let closestDistance = Infinity;
+      
+      pageRefs.current.forEach((canvas, pageNum) => {
+        const rect = canvas.getBoundingClientRect();
+        const pageCenter = rect.top + rect.height / 2;
+        const distance = Math.abs(pageCenter - containerCenter);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestPage = pageNum;
+        }
+      });
+      
+      if (closestPage !== currentPage) {
+        setCurrentPage(closestPage);
+      }
+    };
+    
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [scrollMode, currentPage]);
+
+  const scrollToPage = useCallback((pageNum: number) => {
+    if (!scrollContainerRef.current) return;
+    const canvas = pageRefs.current.get(pageNum);
+    if (canvas) {
+      canvas.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
+  // Keep ref updated for use in onViewerReady
+  useEffect(() => {
+    scrollToPageRef.current = scrollToPage;
+  }, [scrollToPage]);
+
+  const goToPrevPage = () => { 
+    if (currentPage > 1) { 
+      clearOCR(); 
+      const newPage = currentPage - 1;
+      setCurrentPage(newPage);
+      if (scrollMode) scrollToPage(newPage);
+    } 
+  };
+  const goToNextPage = () => { 
+    if (currentPage < totalPages) { 
+      clearOCR(); 
+      const newPage = currentPage + 1;
+      setCurrentPage(newPage);
+      if (scrollMode) scrollToPage(newPage);
+    } 
+  };
   const zoomIn = () => setScale((prev) => Math.min((prev || 1) + 0.2, 9));
   const zoomOut = () => setScale((prev) => Math.max((prev || 1) - 0.2, 0.01));
   const zoomToFit = async () => { if (pdfDoc) setScale(await calculateFitScale(pdfDoc, 'width')); };
@@ -302,6 +466,7 @@ export function PDFViewerInner({
     if (!isNaN(page) && page >= 1 && page <= totalPages) {
       clearOCR();
       setCurrentPage(page);
+      if (scrollMode) scrollToPage(page);
     }
     setIsEditingPage(false);
   };
@@ -552,7 +717,16 @@ export function PDFViewerInner({
           <Button variant="ghost" size="icon" onClick={zoomToFitHeight} title="Fit to height"><MoveVertical className="h-4 w-4" /></Button>
           <Button variant="ghost" size="icon" onClick={rotate} title="Rotate"><RotateCw className="h-4 w-4" /></Button>
           <div className="mx-2 h-4 w-px bg-border" />
-          <Button variant="ghost" size="icon" onClick={handleStartOCR} disabled={isOCRProcessing} title="Run OCR"><ScanText className="h-4 w-4" /></Button>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => onScrollModeChange?.(!scrollMode)} 
+            title={scrollMode ? "Page mode" : "Scroll mode"}
+            className={scrollMode ? "bg-accent" : ""}
+          >
+            {scrollMode ? <Square className="h-4 w-4" /> : <Rows3 className="h-4 w-4" />}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={handleStartOCR} disabled={isOCRProcessing || scrollMode} title={scrollMode ? "OCR disabled in scroll mode" : "Run OCR"}><ScanText className="h-4 w-4" /></Button>
           <Button variant="ghost" size={isExporting ? "sm" : "icon"} onClick={exportPDF} disabled={isExporting} title="Export with filters" className={isExporting ? "gap-2" : ""}>
             {isExporting ? <><Loader2 className="h-4 w-4 animate-spin" /><span className="text-xs">{exportProgress}%</span></> : <Download className="h-4 w-4" />}
           </Button>
@@ -561,41 +735,77 @@ export function PDFViewerInner({
 
       {/* PDF Canvas */}
       <div 
-        ref={containerRef} 
-        className={`flex-1 overflow-auto bg-muted/50 p-4 ${canPan ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
+        ref={scrollMode ? scrollContainerRef : containerRef} 
+        className={`flex-1 overflow-auto bg-muted/50 p-4 ${!scrollMode && canPan ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
+        onMouseDown={scrollMode ? undefined : handleMouseDown}
+        onMouseMove={scrollMode ? undefined : handleMouseMove}
+        onMouseUp={scrollMode ? undefined : handleMouseUp}
+        onMouseLeave={scrollMode ? undefined : handleMouseLeave}
       >
-        <div className="flex justify-center">
-          <div className="relative">
-            <canvas ref={canvasRef} style={getFilterStyle()} className="rounded-sm shadow-lg" />
-            {/* Link annotations overlay */}
-            {linkAnnotations.length > 0 && (
-              <div 
-                className="absolute inset-0 pointer-events-none"
-                style={{ width: canvasSize.width, height: canvasSize.height }}
-              >
-                {linkAnnotations.map((link, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleLinkClick(link)}
-                    className="absolute pointer-events-auto cursor-pointer hover:bg-primary/10 transition-colors rounded-sm"
-                    style={{
-                      left: link.rect.x,
-                      top: link.rect.y,
-                      width: link.rect.width,
-                      height: link.rect.height,
+        {scrollMode ? (
+          /* Scroll mode: render all pages vertically */
+          <div className="flex flex-col items-center gap-4">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+              const isRendered = renderedPages.has(pageNum);
+              return (
+                <div key={pageNum} className="relative">
+                  <canvas
+                    ref={(el) => {
+                      if (el) {
+                        pageRefs.current.set(pageNum, el);
+                        // Set placeholder dimensions on canvas if not yet rendered
+                        if (!isRendered && pageDimensions && el.width === 0) {
+                          el.width = pageDimensions.width;
+                          el.height = pageDimensions.height;
+                        }
+                      } else {
+                        pageRefs.current.delete(pageNum);
+                      }
                     }}
-                    title={link.url || `Go to page ${link.dest}`}
+                    style={getFilterStyle()}
+                    className={`rounded-sm shadow-lg ${!isRendered ? 'bg-muted' : ''}`}
                   />
-                ))}
-              </div>
-            )}
-            <OCROverlay isProcessing={isOCRProcessing} progress={ocrProgress} text={ocrText} onClose={clearOCR} canvasWidth={canvasSize.width} canvasHeight={canvasSize.height} />
+                  {/* Loading indicator for unrendered pages */}
+                  {!isRendered && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        </div>
+        ) : (
+          /* Page mode: single page view */
+          <div className="flex justify-center">
+            <div className="relative">
+              <canvas ref={canvasRef} style={getFilterStyle()} className="rounded-sm shadow-lg" />
+              {/* Link annotations overlay */}
+              {linkAnnotations.length > 0 && (
+                <div 
+                  className="absolute inset-0 pointer-events-none"
+                  style={{ width: canvasSize.width, height: canvasSize.height }}
+                >
+                  {linkAnnotations.map((link, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleLinkClick(link)}
+                      className="absolute pointer-events-auto cursor-pointer hover:bg-primary/10 transition-colors rounded-sm"
+                      style={{
+                        left: link.rect.x,
+                        top: link.rect.y,
+                        width: link.rect.width,
+                        height: link.rect.height,
+                      }}
+                      title={link.url || `Go to page ${link.dest}`}
+                    />
+                  ))}
+                </div>
+              )}
+              <OCROverlay isProcessing={isOCRProcessing} progress={ocrProgress} text={ocrText} onClose={clearOCR} canvasWidth={canvasSize.width} canvasHeight={canvasSize.height} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom Page Navigation */}

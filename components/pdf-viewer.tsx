@@ -25,11 +25,12 @@ interface PDFViewerProps {
   contrast: number;
   sepia: number;
   isZenMode?: boolean;
-  showZenControls?: boolean;
   initialPage?: number;
   initialScale?: number | null;
+  scrollMode?: boolean;
   onPageChange?: (current: number, total: number) => void;
   onScaleChange?: (scale: number) => void;
+  onScrollModeChange?: (scrollMode: boolean) => void;
   onViewerReady?: (controls: {
     goToPage: (page: number) => void;
     zoomIn: () => void;
