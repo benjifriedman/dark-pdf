@@ -10,10 +10,11 @@ import { Link, Upload, FileText, X, Image } from "lucide-react";
 
 interface PDFInputProps {
   onLoadPDF: (source: string | ArrayBuffer, fileName?: string) => void;
-  onLoadImage: (source: ArrayBuffer, fileName: string) => void;
+  onLoadImage: (source: string | ArrayBuffer, fileName: string) => void;
 }
 
 const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif", "image/bmp"];
+const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"];
 
 export function PDFInput({ onLoadPDF, onLoadImage }: PDFInputProps) {
   const [url, setUrl] = useState("");
@@ -22,9 +23,22 @@ export function PDFInput({ onLoadPDF, onLoadImage }: PDFInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleUrlSubmit = () => {
-    if (url.trim()) {
-      // Route through proxy to avoid CORS issues
-      const proxyUrl = `/api/pdf-proxy?url=${encodeURIComponent(url.trim())}`;
+    if (!url.trim()) return;
+    
+    const trimmedUrl = url.trim();
+    const lowerUrl = trimmedUrl.toLowerCase();
+    
+    // Check if URL is an image based on extension
+    const isImageUrl = IMAGE_EXTENSIONS.some(ext => lowerUrl.includes(ext));
+    
+    if (isImageUrl) {
+      // Extract filename from URL
+      const urlPath = new URL(trimmedUrl).pathname;
+      const fileName = urlPath.split('/').pop() || 'image.png';
+      onLoadImage(trimmedUrl, fileName);
+    } else {
+      // Assume PDF - route through proxy to avoid CORS issues
+      const proxyUrl = `/api/pdf-proxy?url=${encodeURIComponent(trimmedUrl)}`;
       onLoadPDF(proxyUrl);
     }
   };
@@ -81,13 +95,13 @@ export function PDFInput({ onLoadPDF, onLoadImage }: PDFInputProps) {
     <div className="space-y-6">
       {/* URL Input */}
       <div className="space-y-2">
-        <Label className="text-sm text-foreground">PDF URL</Label>
+        <Label className="text-sm text-foreground">URL</Label>
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Link className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="url"
-              placeholder="https://example.com/document.pdf"
+              placeholder="https://example.com/file.pdf or image"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleUrlSubmit()}

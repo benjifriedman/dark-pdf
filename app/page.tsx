@@ -54,7 +54,7 @@ const defaultFilters: FilterSettings = {
 function HomeContent() {
   const [pdfSource, setPdfSource] = useState<string | ArrayBuffer | null>(null);
   const [pdfFileName, setPdfFileName] = useState<string | null>(null);
-  const [imageSource, setImageSource] = useState<ArrayBuffer | null>(null);
+  const [imageSource, setImageSource] = useState<string | ArrayBuffer | null>(null);
   const [imageFileName, setImageFileName] = useState<string | null>(null);
   const [fileType, setFileType] = useState<'pdf' | 'image' | null>(null);
   const [stretchMode, setStretchMode] = useState(false);
@@ -209,7 +209,7 @@ function HomeContent() {
     }
   };
 
-  const handleLoadImage = (source: ArrayBuffer, fileName: string) => {
+  const handleLoadImage = (source: string | ArrayBuffer, fileName: string) => {
     // Clear PDF state
     setPdfSource(null);
     setPdfFileName(null);
