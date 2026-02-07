@@ -45,10 +45,10 @@ interface Preset {
 const defaultFilters: FilterSettings = {
   darkMode: true,
   smartDarkMode: false,
-  inversion: 90,
-  brightness: 90,
-  contrast: 90,
-  sepia: 10,
+  inversion: 100,
+  brightness: 200,
+  contrast: 170,
+  sepia: 50,
 };
 
 function HomeContent() {
@@ -65,6 +65,7 @@ function HomeContent() {
   const [contrast, setContrast] = useState(defaultFilters.contrast);
   const [sepia, setSepia] = useState(defaultFilters.sepia);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [filtersLoaded, setFiltersLoaded] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
   const [showZenControls, setShowZenControls] = useState(false);
@@ -78,6 +79,13 @@ function HomeContent() {
   const [startOCRFn, setStartOCRFn] = useState<(() => void) | null>(null);
 
   const { saveSession, loadSession } = useSessionPersistence();
+
+  // Open mobile sheet on initial load for small screens
+  useEffect(() => {
+    if (window.innerWidth < 1024) {
+      setMobileSheetOpen(true);
+    }
+  }, []);
 
   const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp"];
 
@@ -346,7 +354,7 @@ function HomeContent() {
               {sidebarOpen ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeft className="h-5 w-5" />}
             </Button>
           
-            <Sheet>
+            <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="lg:hidden">
                   <Settings2 className="h-5 w-5" />
