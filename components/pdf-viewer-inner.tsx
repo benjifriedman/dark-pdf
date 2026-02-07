@@ -80,6 +80,9 @@ export function PDFViewerInner({
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [isEditingPage, setIsEditingPage] = useState(false);
+  const [pageInputValue, setPageInputValue] = useState("");
+  const pageInputRef = useRef<HTMLInputElement>(null);
 
   const { isProcessing: isOCRProcessing, progress: ocrProgress, text: ocrText, runOCR, clearResult: clearOCR } = useOCR();
 
@@ -217,17 +220,10 @@ export function PDFViewerInner({
       renderTaskRef.current = page.render({ canvasContext: context, viewport });
       await renderTaskRef.current.promise;
       renderTaskRef.current = null;
-      
-      // Apply smart dark mode filter immediately after render
-      if (darkMode && smartDarkMode) {
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        const filtered = applyFilters(imageData, inversion, brightness, contrast, sepia, true);
-        context.putImageData(filtered, 0, 0);
-      }
     } catch (err: any) {
       if (err?.name !== 'RenderingCancelledException') console.error("[v0] Error rendering page:", err);
     }
-  }, [pdfDoc, currentPage, scale, rotation, darkMode, smartDarkMode, inversion, brightness, contrast, sepia]);
+  }, [pdfDoc, currentPage, scale, rotation]);
 
   useEffect(() => { renderPage(); }, [renderPage]);
 
@@ -239,11 +235,37 @@ export function PDFViewerInner({
   const zoomToFitHeight = async () => { if (pdfDoc) setScale(await calculateFitScale(pdfDoc, 'height')); };
   const rotate = () => setRotation((prev) => (prev + 90) % 360);
 
-  const getFilterStyle = () => {
+  const handlePageClick = () => {
+    setPageInputValue(String(currentPage));
+    setIsEditingPage(true);
+    setTimeout(() => pageInputRef.current?.select(), 0);
+  };
+
+  const handlePageInputSubmit = () => {
+    const page = parseInt(pageInputValue, 10);
+    if (!isNaN(page) && page >= 1 && page <= totalPages) {
+      clearOCR();
+      setCurrentPage(page);
+    }
+    setIsEditingPage(false);
+  };
+
+  const handlePageInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handlePageInputSubmit();
+    } else if (e.key === "Escape") {
+      setIsEditingPage(false);
+    }
+  };
+
+  const getFilterStyle = (): React.CSSProperties => {
     if (!darkMode) return {};
     if (smartDarkMode) {
-      // Smart dark mode uses mix-blend-mode approach
-      return {};
+      // Smart dark mode: use hue-rotate(180deg) after invert to preserve colors better
+      // This inverts luminosity but keeps hues roughly the same
+      return { 
+        filter: `invert(${inversion}%) hue-rotate(180deg) brightness(${brightness}%) contrast(${contrast}%) sepia(${sepia}%)` 
+      };
     }
     return { filter: `invert(${inversion}%) brightness(${brightness}%) contrast(${contrast}%) sepia(${sepia}%)` };
   };
@@ -303,25 +325,46 @@ export function PDFViewerInner({
     for (let i = 0; i < data.length; i += 4) {
       let r = data[i], g = data[i + 1], b = data[i + 2];
       
+      // Invert
+      r = r + (255 - 2 * r) * invertRatio;
+      g = g + (255 - 2 * g) * invertRatio;
+      b = b + (255 - 2 * b) * invertRatio;
+
+      // For smart mode, apply hue rotation (180 degrees) to preserve colors
       if (smart) {
-        // Smart mode: detect if pixel is likely part of an image (colorful) vs text/background (grayscale-ish)
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        const saturation = max === 0 ? 0 : (max - min) / max;
-        const isColorful = saturation > 0.15 && max > 30;
+        // Convert to HSL, rotate hue by 180, convert back
+        const max = Math.max(r, g, b) / 255;
+        const min = Math.min(r, g, b) / 255;
+        const l = (max + min) / 2;
         
-        if (!isColorful) {
-          // Apply inversion only to non-colorful pixels (text/background)
-          r = r + (255 - 2 * r) * invertRatio;
-          g = g + (255 - 2 * g) * invertRatio;
-          b = b + (255 - 2 * b) * invertRatio;
+        if (max !== min) {
+          const d = max - min;
+          const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+          let h = 0;
+          const rn = r / 255, gn = g / 255, bn = b / 255;
+          if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6;
+          else if (max === gn) h = ((bn - rn) / d + 2) / 6;
+          else h = ((rn - gn) / d + 4) / 6;
+          
+          // Rotate hue by 180 degrees
+          h = (h + 0.5) % 1;
+          
+          // Convert back to RGB
+          const hue2rgb = (p: number, q: number, t: number) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1/6) return p + (q - p) * 6 * t;
+            if (t < 1/2) return q;
+            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+          };
+          
+          const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+          const p = 2 * l - q;
+          r = hue2rgb(p, q, h + 1/3) * 255;
+          g = hue2rgb(p, q, h) * 255;
+          b = hue2rgb(p, q, h - 1/3) * 255;
         }
-        // Colorful pixels (images) are left unchanged
-      } else {
-        // Standard inversion
-        r = r + (255 - 2 * r) * invertRatio;
-        g = g + (255 - 2 * g) * invertRatio;
-        b = b + (255 - 2 * b) * invertRatio;
       }
 
       // Brightness
@@ -347,6 +390,7 @@ export function PDFViewerInner({
       data[i + 1] = Math.max(0, Math.min(255, g));
       data[i + 2] = Math.max(0, Math.min(255, b));
     }
+    
     return imageData;
   };
 
@@ -363,7 +407,29 @@ export function PDFViewerInner({
       <div className={`flex items-center justify-between border-b border-border bg-card px-4 py-2 transition-all duration-300 ${toolbarHidden ? "opacity-0 pointer-events-none h-0 py-0 border-0 overflow-hidden" : "opacity-100"}`}>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={goToPrevPage} disabled={currentPage <= 1}><ChevronLeft className="h-4 w-4" /></Button>
-          <span className="min-w-[80px] text-center text-sm text-foreground">{currentPage} / {totalPages}</span>
+          {isEditingPage ? (
+            <div className="flex items-center gap-1">
+              <input
+                ref={pageInputRef}
+                type="text"
+                value={pageInputValue}
+                onChange={(e) => setPageInputValue(e.target.value.replace(/\D/g, ""))}
+                onBlur={handlePageInputSubmit}
+                onKeyDown={handlePageInputKeyDown}
+                className="w-12 rounded border border-border bg-input px-2 py-1 text-center text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+              <span className="text-sm text-muted-foreground">/ {totalPages}</span>
+            </div>
+          ) : (
+            <button
+              onClick={handlePageClick}
+              className="min-w-[80px] rounded px-2 py-1 text-center text-sm text-foreground hover:bg-muted transition-colors"
+              title="Click to jump to page"
+            >
+              {currentPage} / {totalPages}
+            </button>
+          )}
           <Button variant="ghost" size="icon" onClick={goToNextPage} disabled={currentPage >= totalPages}><ChevronRight className="h-4 w-4" /></Button>
         </div>
         <div className="flex items-center gap-2">

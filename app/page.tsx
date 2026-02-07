@@ -9,7 +9,7 @@ import { CommandPalette } from "@/components/command-palette";
 import { GlobalDropOverlay } from "@/components/global-drop-overlay";
 import { useGlobalDragDrop } from "@/hooks/use-global-drag-drop";
 import { useSessionPersistence } from "@/hooks/use-session-persistence";
-import { FileText, Moon, Settings2, PanelLeftClose, PanelLeft, Share2, Maximize, Minimize, ChevronLeft, ChevronRight } from "lucide-react";
+import { Settings2, PanelLeftClose, PanelLeft, Share2, Maximize, Minimize, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -262,9 +262,6 @@ function HomeContent() {
       {!isZenMode && (
         <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-              <FileText className="h-4 w-4 text-primary-foreground" />
-            </div>
             <div>
               <h1 className="text-lg font-semibold text-foreground">Dark PDF</h1>
               <p className="hidden text-xs text-muted-foreground sm:block">Comfortable reading in dark mode</p>
@@ -272,10 +269,6 @@ function HomeContent() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground sm:flex">
-              <Moon className="h-3 w-3" />
-              {darkMode ? (smartDarkMode ? "Smart Dark" : "Dark Mode") : "Light Mode"}
-            </div>
             <Button variant="ghost" size="icon" onClick={shareConfig} title="Copy shareable link">
               <Share2 className="h-5 w-5" />
             </Button>

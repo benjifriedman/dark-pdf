@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Save, Trash2, Check, X, Pencil } from "lucide-react";
+import { Save, Trash2, Check, X, Pencil, ChevronRight } from "lucide-react";
 
 interface Preset {
   id: string;
@@ -36,6 +35,7 @@ export function PresetManager({
   const [newPresetName, setNewPresetName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [isExpanded, setIsExpanded] = useState(true);
 
   // Load presets from localStorage
   useEffect(() => {
@@ -99,98 +99,113 @@ export function PresetManager({
 
   return (
     <div className="space-y-4">
-      <Label className="text-sm font-medium text-foreground">Presets</Label>
-
-      {/* Save new preset */}
-      <div className="flex gap-2">
-        <Input
-          placeholder="Preset name"
-          value={newPresetName}
-          onChange={(e) => setNewPresetName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSavePreset()}
-          className="flex-1 bg-input border-border text-foreground placeholder:text-muted-foreground"
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        <ChevronRight 
+          className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} 
         />
-        <Button
-          size="icon"
-          onClick={handleSavePreset}
-          disabled={!newPresetName.trim()}
-        >
-          <Save className="h-4 w-4" />
-        </Button>
-      </div>
+        <span className="text-sm font-medium text-foreground">Presets</span>
+        {presets.length > 0 && (
+          <span className="text-xs text-muted-foreground">({presets.length})</span>
+        )}
+      </button>
 
-      {/* Preset list */}
-      {presets.length > 0 && (
-        <div className="space-y-2">
-          {presets.map((preset) => (
-            <div
-              key={preset.id}
-              className="flex items-center gap-2 rounded-md border border-border bg-muted/50 p-2"
+      {isExpanded && (
+        <>
+          {/* Save new preset */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="Preset name"
+              value={newPresetName}
+              onChange={(e) => setNewPresetName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSavePreset()}
+              className="flex-1 bg-input border-border text-foreground placeholder:text-muted-foreground"
+            />
+            <Button
+              size="icon"
+              onClick={handleSavePreset}
+              disabled={!newPresetName.trim()}
             >
-              {editingId === preset.id ? (
-                <>
-                  <Input
-                    value={editingName}
-                    onChange={(e) => setEditingName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleSaveEdit(preset.id);
-                      if (e.key === "Escape") handleCancelEdit();
-                    }}
-                    className="flex-1 h-7 text-sm bg-input border-border"
-                    autoFocus
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => handleSaveEdit(preset.id)}
-                  >
-                    <Check className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={handleCancelEdit}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => onApplyPreset(preset)}
-                    className="flex-1 text-left text-sm text-foreground hover:text-primary truncate"
-                  >
-                    {preset.name}
-                  </button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => handleStartEdit(preset)}
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-destructive hover:text-destructive"
-                    onClick={() => handleDeletePreset(preset.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+              <Save className="h-4 w-4" />
+            </Button>
+          </div>
 
-      {presets.length === 0 && (
-        <p className="text-xs text-muted-foreground">
-          No presets saved yet. Adjust the filters and save your configuration.
-        </p>
+          {/* Preset list */}
+          {presets.length > 0 && (
+            <div className="space-y-2">
+              {presets.map((preset) => (
+                <div
+                  key={preset.id}
+                  className="flex items-center gap-2 rounded-md border border-border bg-muted/50 p-2"
+                >
+                  {editingId === preset.id ? (
+                    <>
+                      <Input
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveEdit(preset.id);
+                          if (e.key === "Escape") handleCancelEdit();
+                        }}
+                        className="flex-1 h-7 text-sm bg-input border-border"
+                        autoFocus
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => handleSaveEdit(preset.id)}
+                      >
+                        <Check className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={handleCancelEdit}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => onApplyPreset(preset)}
+                        className="flex-1 text-left text-sm text-foreground hover:text-primary truncate"
+                      >
+                        {preset.name}
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => handleStartEdit(preset)}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        onClick={() => handleDeletePreset(preset.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {presets.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              No presets saved yet. Adjust the filters and save your configuration.
+            </p>
+          )}
+        </>
       )}
     </div>
   );
