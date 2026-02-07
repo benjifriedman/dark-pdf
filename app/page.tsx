@@ -9,7 +9,7 @@ import { CommandPalette } from "@/components/command-palette";
 import { GlobalDropOverlay } from "@/components/global-drop-overlay";
 import { useGlobalDragDrop } from "@/hooks/use-global-drag-drop";
 import { useSessionPersistence } from "@/hooks/use-session-persistence";
-import { Settings2, PanelLeftClose, PanelLeft, Share2, Maximize, Minimize, ChevronLeft, ChevronRight } from "lucide-react";
+import { Settings2, PanelLeftClose, PanelLeft, Maximize, Minimize, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -198,19 +198,6 @@ function HomeContent() {
     setSepia(10);
   };
 
-  const shareConfig = async () => {
-    const params = new URLSearchParams();
-    params.set("dm", darkMode ? "1" : "0");
-    params.set("sdm", smartDarkMode ? "1" : "0");
-    params.set("inv", String(inversion));
-    params.set("br", String(brightness));
-    params.set("ct", String(contrast));
-    params.set("sp", String(sepia));
-    if (currentPage > 1) params.set("p", String(currentPage));
-    const url = window.location.origin + window.location.pathname + "?" + params.toString();
-    try { await navigator.clipboard.writeText(url); } catch (e) { console.error("Failed to copy URL:", e); }
-  };
-
   const handlePageChange = useCallback((current: number, total: number) => {
     setCurrentPage(current);
     setTotalPages(total);
@@ -266,7 +253,6 @@ function HomeContent() {
         onGoToPage={(page) => goToPageFn?.(page)}
         onZoomIn={() => zoomInFn?.()}
         onZoomOut={() => zoomOutFn?.()}
-        onShareConfig={shareConfig}
         onStartOCR={startOCRFn ? () => startOCRFn() : undefined}
       />
 
@@ -280,9 +266,6 @@ function HomeContent() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={shareConfig} title="Copy shareable link">
-              <Share2 className="h-5 w-5" />
-            </Button>
             <Button variant="ghost" size="icon" onClick={() => setIsZenMode(true)} title="Enter Zen Mode">
               <Maximize className="h-5 w-5" />
             </Button>
@@ -307,7 +290,7 @@ function HomeContent() {
                     <FilterControls {...filterControlsProps} />
                   </div>
                   <div className="border-t border-border pt-6">
-                    <PresetManager inversion={inversion} brightness={brightness} contrast={contrast} sepia={sepia} onApplyPreset={handleApplyPreset} />
+                    <PresetManager inversion={inversion} brightness={brightness} contrast={contrast} sepia={sepia} darkMode={darkMode} smartDarkMode={smartDarkMode} onApplyPreset={handleApplyPreset} />
                   </div>
                 </div>
               </SheetContent>
@@ -325,7 +308,7 @@ function HomeContent() {
                 <FilterControls {...filterControlsProps} />
               </div>
               <div className="border-t border-border pt-6">
-                <PresetManager inversion={inversion} brightness={brightness} contrast={contrast} sepia={sepia} onApplyPreset={handleApplyPreset} />
+                <PresetManager inversion={inversion} brightness={brightness} contrast={contrast} sepia={sepia} darkMode={darkMode} smartDarkMode={smartDarkMode} onApplyPreset={handleApplyPreset} />
               </div>
             </div>
           </aside>

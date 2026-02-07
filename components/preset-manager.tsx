@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Save, Trash2, Check, X, Pencil, ChevronRight } from "lucide-react";
+import { Save, Trash2, Check, X, Pencil, ChevronRight, Share2 } from "lucide-react";
 
 interface Preset {
   id: string;
@@ -19,6 +19,8 @@ interface PresetManagerProps {
   brightness: number;
   contrast: number;
   sepia: number;
+  darkMode: boolean;
+  smartDarkMode: boolean;
   onApplyPreset: (preset: Omit<Preset, "id" | "name">) => void;
 }
 
@@ -29,6 +31,8 @@ export function PresetManager({
   brightness,
   contrast,
   sepia,
+  darkMode,
+  smartDarkMode,
   onApplyPreset,
 }: PresetManagerProps) {
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -95,6 +99,19 @@ export function PresetManager({
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditingName("");
+  };
+
+  const handleSharePreset = async (preset: Preset) => {
+    const params = new URLSearchParams();
+    params.set("dm", darkMode ? "1" : "0");
+    params.set("sdm", smartDarkMode ? "1" : "0");
+    params.set("inv", String(preset.inversion));
+    params.set("br", String(preset.brightness));
+    params.set("ct", String(preset.contrast));
+    params.set("sp", String(preset.sepia));
+    
+    const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+    await navigator.clipboard.writeText(url);
   };
 
   return (
@@ -177,6 +194,15 @@ export function PresetManager({
                       >
                         {preset.name}
                       </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => handleSharePreset(preset)}
+                        title="Copy shareable link"
+                      >
+                        <Share2 className="h-3 w-3" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"

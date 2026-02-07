@@ -15,7 +15,6 @@ import {
   Sun,
   Sparkles,
   Palette,
-  Share2,
   Maximize,
   RotateCcw,
   ChevronRight,
@@ -40,7 +39,6 @@ interface CommandPaletteProps {
   onGoToPage: (page: number) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
-  onShareConfig: () => void;
   onStartOCR?: () => void;
 }
 
@@ -59,7 +57,6 @@ export function CommandPalette({
   onGoToPage,
   onZoomIn,
   onZoomOut,
-  onShareConfig,
   onStartOCR,
 }: CommandPaletteProps) {
   const [open, setOpen] = useState(false);
@@ -176,10 +173,6 @@ export function CommandPalette({
         <CommandSeparator />
 
         <CommandGroup heading="Tools">
-          <CommandItem onSelect={() => handleSelect(onShareConfig)}>
-            <Share2 className="mr-2 h-4 w-4" />
-            <span>Copy Shareable Link</span>
-          </CommandItem>
           {onStartOCR && (
             <CommandItem onSelect={() => handleSelect(onStartOCR)}>
               <ScanText className="mr-2 h-4 w-4" />
