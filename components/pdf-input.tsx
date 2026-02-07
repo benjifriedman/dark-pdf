@@ -26,6 +26,20 @@ export function PDFInput({ onLoadPDF, onLoadImage }: PDFInputProps) {
     if (!url.trim()) return;
     
     const trimmedUrl = url.trim();
+    
+    // Validate URL format
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(trimmedUrl);
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        alert("Please enter a valid HTTP or HTTPS URL");
+        return;
+      }
+    } catch {
+      alert("Please enter a valid URL");
+      return;
+    }
+    
     const lowerUrl = trimmedUrl.toLowerCase();
     
     // Check if URL is an image based on extension
@@ -39,8 +53,7 @@ export function PDFInput({ onLoadPDF, onLoadImage }: PDFInputProps) {
     
     if (isImageUrl) {
       // Extract filename from URL
-      const urlPath = new URL(trimmedUrl).pathname;
-      const fileName = urlPath.split('/').pop() || 'image.png';
+      const fileName = parsedUrl.pathname.split('/').pop() || 'image.png';
       onLoadImage(trimmedUrl, fileName);
     } else {
       // Assume PDF - route through proxy to avoid CORS issues

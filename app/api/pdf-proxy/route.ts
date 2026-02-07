@@ -29,12 +29,59 @@ function isRateLimited(ip: string): boolean {
     return false;
   }
 
-  if (record.count >= RATE_LIMIT) {
+  record.count++;
+  
+  if (record.count > RATE_LIMIT) {
     return true;
   }
 
-  record.count++;
   return false;
+}
+
+/**
+ * Validate that a URL is a safe external HTTP/HTTPS URL
+ * Prevents SSRF attacks by blocking internal/private IPs
+ */
+function isValidExternalUrl(url: string): { valid: boolean; error?: string } {
+  try {
+    const parsed = new URL(url);
+    
+    // Only allow HTTP/HTTPS
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return { valid: false, error: "Only HTTP/HTTPS URLs are allowed" };
+    }
+    
+    const hostname = parsed.hostname.toLowerCase();
+    
+    // Block localhost
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      return { valid: false, error: "Localhost URLs are not allowed" };
+    }
+    
+    // Block private IP ranges
+    const ipv4Match = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+    if (ipv4Match) {
+      const [, a, b] = ipv4Match.map(Number);
+      // 10.x.x.x, 172.16-31.x.x, 192.168.x.x, 169.254.x.x (link-local)
+      if (a === 10 || 
+          (a === 172 && b >= 16 && b <= 31) || 
+          (a === 192 && b === 168) ||
+          (a === 169 && b === 254) ||
+          a === 0) {
+        return { valid: false, error: "Private IP addresses are not allowed" };
+      }
+    }
+    
+    // Block common internal hostnames
+    const blockedPatterns = ['internal', 'intranet', 'corp', 'private', 'local'];
+    if (blockedPatterns.some(pattern => hostname.includes(pattern))) {
+      return { valid: false, error: "Internal hostnames are not allowed" };
+    }
+    
+    return { valid: true };
+  } catch {
+    return { valid: false, error: "Invalid URL format" };
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -54,6 +101,12 @@ export async function GET(request: NextRequest) {
 
   if (!url) {
     return NextResponse.json({ error: "Missing URL parameter" }, { status: 400 });
+  }
+
+  // Validate URL to prevent SSRF
+  const validation = isValidExternalUrl(url);
+  if (!validation.valid) {
+    return NextResponse.json({ error: validation.error }, { status: 400 });
   }
 
   try {
@@ -86,8 +139,7 @@ export async function GET(request: NextRequest) {
         "Cache-Control": "public, max-age=3600",
       },
     });
-  } catch (err) {
-    console.error("PDF proxy error:", err);
+  } catch {
     return NextResponse.json(
       { error: "Failed to fetch PDF. The URL may be invalid or unreachable." },
       { status: 500 }

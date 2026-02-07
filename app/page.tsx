@@ -144,13 +144,19 @@ function HomeContent() {
     if (fileUrl) {
       try {
         const decodedUrl = decodeURIComponent(fileUrl);
+        
+        // Validate URL format and protocol
+        const parsedUrl = new URL(decodedUrl);
+        if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+          throw new Error("Invalid protocol");
+        }
+        
         const lowerUrl = decodedUrl.toLowerCase();
         const imageExtensions = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"];
         const isImage = imageExtensions.some(ext => lowerUrl.includes(ext));
         
         if (isImage) {
-          const urlPath = new URL(decodedUrl).pathname;
-          const fileName = urlPath.split('/').pop() || 'image.png';
+          const fileName = parsedUrl.pathname.split('/').pop() || 'image.png';
           setImageSource(decodedUrl);
           setImageFileName(fileName);
           setFileType('image');
@@ -158,10 +164,10 @@ function HomeContent() {
           // Assume PDF - route through proxy
           const proxyUrl = `/api/pdf-proxy?url=${encodeURIComponent(decodedUrl)}`;
           setPdfSource(proxyUrl);
-          setPdfFileName(decodedUrl.split('/').pop() || 'document.pdf');
+          setPdfFileName(parsedUrl.pathname.split('/').pop() || 'document.pdf');
           setFileType('pdf');
         }
-      } catch { /* Invalid URL */ }
+      } catch { /* Invalid URL - silently ignore */ }
     }
     
     setFiltersLoaded(true);
