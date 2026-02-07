@@ -88,6 +88,9 @@ export function PDFViewerInner({
     dest: number | null; // page number for internal links
     url: string | null;  // URL for external links
   }>>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+  const [canPan, setCanPan] = useState(false);
 
   const { isProcessing: isOCRProcessing, progress: ocrProgress, text: ocrText, runOCR, clearResult: clearOCR } = useOCR();
 
@@ -98,8 +101,8 @@ export function PDFViewerInner({
         goToPage: (page: number) => {
           if (page >= 1 && page <= totalPages) { clearOCR(); setCurrentPage(page); }
         },
-        zoomIn: () => setScale((prev) => Math.min((prev || 1) + 0.2, 3)),
-        zoomOut: () => setScale((prev) => Math.max((prev || 1) - 0.2, 0.5)),
+        zoomIn: () => setScale((prev) => Math.min((prev || 1) + 0.2, 9)),
+        zoomOut: () => setScale((prev) => Math.max((prev || 1) - 0.2, 0.3)),
         startOCR: () => {
           if (canvasRef.current) runOCR(canvasRef.current);
         },
@@ -157,8 +160,8 @@ export function PDFViewerInner({
     const viewport = page.getViewport({ scale: 1, rotation: 0 });
     const containerWidth = containerRef.current.clientWidth - 32;
     const containerHeight = containerRef.current.clientHeight - 32;
-    if (mode === 'height') return Math.min(Math.max(containerHeight / viewport.height, 0.5), 3);
-    return Math.min(Math.max(containerWidth / viewport.width, 0.5), 3);
+    if (mode === 'height') return Math.min(Math.max(containerHeight / viewport.height, 0.3), 9);
+    return Math.min(Math.max(containerWidth / viewport.width, 0.3), 9);
   }, []);
 
   const loadPDF = useCallback(async () => {
@@ -282,8 +285,8 @@ export function PDFViewerInner({
 
   const goToPrevPage = () => { if (currentPage > 1) { clearOCR(); setCurrentPage(currentPage - 1); } };
   const goToNextPage = () => { if (currentPage < totalPages) { clearOCR(); setCurrentPage(currentPage + 1); } };
-  const zoomIn = () => setScale((prev) => Math.min((prev || 1) + 0.2, 3));
-  const zoomOut = () => setScale((prev) => Math.max((prev || 1) - 0.2, 0.5));
+  const zoomIn = () => setScale((prev) => Math.min((prev || 1) + 0.2, 9));
+  const zoomOut = () => setScale((prev) => Math.max((prev || 1) - 0.2, 0.3));
   const zoomToFit = async () => { if (pdfDoc) setScale(await calculateFitScale(pdfDoc, 'width')); };
   const zoomToFitHeight = async () => { if (pdfDoc) setScale(await calculateFitScale(pdfDoc, 'height')); };
   const rotate = () => setRotation((prev) => (prev + 90) % 360);
@@ -320,6 +323,51 @@ export function PDFViewerInner({
       clearOCR();
       setCurrentPage(link.dest);
     }
+  };
+
+  // Check if content overflows container (enables pan mode)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const checkOverflow = () => {
+      const hasOverflow = container.scrollWidth > container.clientWidth || container.scrollHeight > container.clientHeight;
+      setCanPan(hasOverflow);
+    };
+    checkOverflow();
+    const resizeObserver = new ResizeObserver(checkOverflow);
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, [canvasSize, scale]);
+
+  // Drag-to-pan handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!canPan || !containerRef.current) return;
+    // Don't start drag if clicking on a link or button
+    if ((e.target as HTMLElement).closest('button')) return;
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: containerRef.current.scrollLeft,
+      scrollTop: containerRef.current.scrollTop,
+    });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !containerRef.current) return;
+    e.preventDefault();
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+    containerRef.current.scrollLeft = dragStart.scrollLeft - dx;
+    containerRef.current.scrollTop = dragStart.scrollTop - dy;
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
   };
 
   const getFilterStyle = (): React.CSSProperties => {
@@ -463,7 +511,7 @@ export function PDFViewerInner({
   if (isLoading) return <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   if (error) return <div className="flex h-full items-center justify-center text-destructive"><p>{error}</p></div>;
 
-  const toolbarHidden = isZenMode && !showZenControls;
+  const toolbarHidden = isZenMode;
 
   return (
     <div className="flex h-full flex-col">
@@ -512,10 +560,17 @@ export function PDFViewerInner({
       </div>
 
       {/* PDF Canvas */}
-      <div ref={containerRef} className="flex-1 overflow-auto bg-muted/50 p-4">
+      <div 
+        ref={containerRef} 
+        className={`flex-1 overflow-auto bg-muted/50 p-4 ${canPan ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+      >
         <div className="flex justify-center">
           <div className="relative">
-            <canvas ref={canvasRef} style={getFilterStyle()} className="max-w-full rounded-sm shadow-lg" />
+            <canvas ref={canvasRef} style={getFilterStyle()} className="rounded-sm shadow-lg" />
             {/* Link annotations overlay */}
             {linkAnnotations.length > 0 && (
               <div 

@@ -135,13 +135,24 @@ function HomeContent() {
   }, [pdfSource, pdfFileName, currentPage, viewerScale, darkMode, smartDarkMode, inversion, brightness, contrast, sepia, filtersLoaded, saveSession]);
 
   useEffect(() => {
-    if (!isZenMode) return;
+    if (!isZenMode) {
+      setShowZenControls(false);
+      return;
+    }
+    
+    let isInTopZone = false;
+    
     const handleEscape = (e: KeyboardEvent) => { if (e.key === "Escape") setIsZenMode(false); };
-    const handleMouseMove = () => {
-      setShowZenControls(true);
-      const timeout = setTimeout(() => setShowZenControls(false), 2000);
-      return () => clearTimeout(timeout);
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const shouldShow = e.clientY < 100;
+      // Only update state if zone changed
+      if (shouldShow !== isInTopZone) {
+        isInTopZone = shouldShow;
+        setShowZenControls(shouldShow);
+      }
     };
+    
     window.addEventListener("keydown", handleEscape);
     window.addEventListener("mousemove", handleMouseMove);
     return () => {

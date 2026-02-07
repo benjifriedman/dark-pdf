@@ -128,3 +128,31 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* Custom dark-mode friendly scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.35 0 0) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: oklch(0.35 0 0);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.45 0 0);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}

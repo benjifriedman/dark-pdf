@@ -9,6 +9,8 @@ A web app for reading PDFs comfortably in dark mode with customizable filters.
 - **Export with Filters** - Save PDFs with your filter settings applied
 - **Presets** - Save and load your favorite filter configurations (collapsible panel)
 - **Clickable Links** - Internal page links and external URLs work as expected
+- **Deep Zoom** - Zoom up to 900% with horizontal scrolling
+- **Drag to Pan** - Click and drag to navigate when zoomed in
 - **Command Palette** - Press `⌘K` / `Ctrl+K` for quick access to all features
 - **Zen Mode** - Distraction-free reading with minimal floating controls
 - **OCR Support** - Extract text from scanned PDFs using Tesseract.js
