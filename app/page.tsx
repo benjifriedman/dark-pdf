@@ -138,6 +138,32 @@ function HomeContent() {
     if (params.has("br")) setBrightness(Math.min(300, Math.max(0, parseInt(params.get("br") || "90", 10))));
     if (params.has("ct")) setContrast(Math.min(300, Math.max(0, parseInt(params.get("ct") || "90", 10))));
     if (params.has("sp")) setSepia(Math.min(100, Math.max(0, parseInt(params.get("sp") || "10", 10))));
+    
+    // Load file from URL parameter
+    const fileUrl = params.get("file");
+    if (fileUrl) {
+      try {
+        const decodedUrl = decodeURIComponent(fileUrl);
+        const lowerUrl = decodedUrl.toLowerCase();
+        const imageExtensions = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"];
+        const isImage = imageExtensions.some(ext => lowerUrl.includes(ext));
+        
+        if (isImage) {
+          const urlPath = new URL(decodedUrl).pathname;
+          const fileName = urlPath.split('/').pop() || 'image.png';
+          setImageSource(decodedUrl);
+          setImageFileName(fileName);
+          setFileType('image');
+        } else {
+          // Assume PDF - route through proxy
+          const proxyUrl = `/api/pdf-proxy?url=${encodeURIComponent(decodedUrl)}`;
+          setPdfSource(proxyUrl);
+          setPdfFileName(decodedUrl.split('/').pop() || 'document.pdf');
+          setFileType('pdf');
+        }
+      } catch { /* Invalid URL */ }
+    }
+    
     setFiltersLoaded(true);
   }, []);
 

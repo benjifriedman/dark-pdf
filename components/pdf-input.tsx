@@ -31,6 +31,12 @@ export function PDFInput({ onLoadPDF, onLoadImage }: PDFInputProps) {
     // Check if URL is an image based on extension
     const isImageUrl = IMAGE_EXTENSIONS.some(ext => lowerUrl.includes(ext));
     
+    // Update browser URL with file parameter
+    const params = new URLSearchParams(window.location.search);
+    params.set("file", trimmedUrl);
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, "", newUrl);
+    
     if (isImageUrl) {
       // Extract filename from URL
       const urlPath = new URL(trimmedUrl).pathname;
@@ -52,6 +58,14 @@ export function PDFInput({ onLoadPDF, onLoadImage }: PDFInputProps) {
     if (!isPDF && !isImage) {
       alert("Please select a PDF or image file (PNG, JPG, WEBP, GIF, BMP)");
       return;
+    }
+
+    // Clear file param from URL when uploading a local file
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("file")) {
+      params.delete("file");
+      const newUrl = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
+      window.history.replaceState({}, "", newUrl);
     }
 
     setFileName(file.name);
