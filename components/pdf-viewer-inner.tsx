@@ -83,6 +83,11 @@ export function PDFViewerInner({
   const [isEditingPage, setIsEditingPage] = useState(false);
   const [pageInputValue, setPageInputValue] = useState("");
   const pageInputRef = useRef<HTMLInputElement>(null);
+  const [linkAnnotations, setLinkAnnotations] = useState<Array<{
+    rect: { x: number; y: number; width: number; height: number };
+    dest: number | null; // page number for internal links
+    url: string | null;  // URL for external links
+  }>>([]);
 
   const { isProcessing: isOCRProcessing, progress: ocrProgress, text: ocrText, runOCR, clearResult: clearOCR } = useOCR();
 
@@ -220,6 +225,54 @@ export function PDFViewerInner({
       renderTaskRef.current = page.render({ canvasContext: context, viewport });
       await renderTaskRef.current.promise;
       renderTaskRef.current = null;
+      
+      // Extract link annotations
+      const annotations = await page.getAnnotations();
+      const links: typeof linkAnnotations = [];
+      
+      for (const annot of annotations) {
+        if (annot.subtype === "Link" && annot.rect) {
+          const [x1, y1, x2, y2] = annot.rect;
+          // Transform coordinates using viewport
+          const rect = viewport.convertToViewportRectangle([x1, y1, x2, y2]);
+          const [vx1, vy1, vx2, vy2] = rect;
+          
+          // Normalize rect (PDF coords can be inverted)
+          const x = Math.min(vx1, vx2);
+          const y = Math.min(vy1, vy2);
+          const width = Math.abs(vx2 - vx1);
+          const height = Math.abs(vy2 - vy1);
+          
+          let dest: number | null = null;
+          let url: string | null = null;
+          
+          if (annot.url) {
+            url = annot.url;
+          } else if (annot.dest) {
+            // Internal link - resolve destination to page number
+            try {
+              if (typeof annot.dest === "string") {
+                const destRef = await pdfDoc.getDestination(annot.dest);
+                if (destRef && destRef[0]) {
+                  const pageIndex = await pdfDoc.getPageIndex(destRef[0]);
+                  dest = pageIndex + 1; // Convert to 1-based
+                }
+              } else if (Array.isArray(annot.dest) && annot.dest[0]) {
+                const pageIndex = await pdfDoc.getPageIndex(annot.dest[0]);
+                dest = pageIndex + 1;
+              }
+            } catch {
+              // Failed to resolve destination
+            }
+          }
+          
+          if (dest || url) {
+            links.push({ rect: { x, y, width, height }, dest, url });
+          }
+        }
+      }
+      
+      setLinkAnnotations(links);
     } catch (err: any) {
       if (err?.name !== 'RenderingCancelledException') console.error("[v0] Error rendering page:", err);
     }
@@ -255,6 +308,17 @@ export function PDFViewerInner({
       handlePageInputSubmit();
     } else if (e.key === "Escape") {
       setIsEditingPage(false);
+    }
+  };
+
+  const handleLinkClick = (link: typeof linkAnnotations[0]) => {
+    if (link.url) {
+      // External link - open in new tab
+      window.open(link.url, "_blank", "noopener,noreferrer");
+    } else if (link.dest) {
+      // Internal link - navigate to page
+      clearOCR();
+      setCurrentPage(link.dest);
     }
   };
 
@@ -452,6 +516,28 @@ export function PDFViewerInner({
         <div className="flex justify-center">
           <div className="relative">
             <canvas ref={canvasRef} style={getFilterStyle()} className="max-w-full rounded-sm shadow-lg" />
+            {/* Link annotations overlay */}
+            {linkAnnotations.length > 0 && (
+              <div 
+                className="absolute inset-0 pointer-events-none"
+                style={{ width: canvasSize.width, height: canvasSize.height }}
+              >
+                {linkAnnotations.map((link, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleLinkClick(link)}
+                    className="absolute pointer-events-auto cursor-pointer hover:bg-primary/10 transition-colors rounded-sm"
+                    style={{
+                      left: link.rect.x,
+                      top: link.rect.y,
+                      width: link.rect.width,
+                      height: link.rect.height,
+                    }}
+                    title={link.url || `Go to page ${link.dest}`}
+                  />
+                ))}
+              </div>
+            )}
             <OCROverlay isProcessing={isOCRProcessing} progress={ocrProgress} text={ocrText} onClose={clearOCR} canvasWidth={canvasSize.width} canvasHeight={canvasSize.height} />
           </div>
         </div>
