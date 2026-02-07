@@ -23,7 +23,6 @@ interface ImageViewerProps {
   sepia: number;
   isZenMode?: boolean;
   stretchMode?: boolean;
-  filmGrain?: boolean;
 }
 
 export function ImageViewer({
@@ -37,7 +36,6 @@ export function ImageViewer({
   sepia,
   isZenMode = false,
   stretchMode = false,
-  filmGrain = false,
 }: ImageViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -79,8 +77,8 @@ export function ImageViewer({
     if (!containerRef.current || !imageSize.width) return 1;
     const containerWidth = containerRef.current.clientWidth - 32;
     const containerHeight = containerRef.current.clientHeight - 32;
-    if (mode === 'height') return Math.min(Math.max(containerHeight / imageSize.height, 0.3), 9);
-    return Math.min(Math.max(containerWidth / imageSize.width, 0.3), 9);
+    if (mode === 'height') return Math.min(Math.max(containerHeight / imageSize.height, 0.01), 9);
+    return Math.min(Math.max(containerWidth / imageSize.width, 0.01), 9);
   }, [imageSize]);
 
   // Set initial scale when image loads
@@ -135,7 +133,7 @@ export function ImageViewer({
   const handleMouseLeave = () => setIsDragging(false);
 
   const zoomIn = () => setScale((prev) => Math.min(prev + 0.2, 9));
-  const zoomOut = () => setScale((prev) => Math.max(prev - 0.2, 0.3));
+  const zoomOut = () => setScale((prev) => Math.max(prev - 0.2, 0.01));
   const zoomToFit = () => setScale(calculateFitScale('width'));
   const zoomToFitHeight = () => setScale(calculateFitScale('height'));
   const rotate = () => setRotation((prev) => (prev + 90) % 360);
@@ -309,7 +307,7 @@ export function ImageViewer({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
       >
-        <div className={`relative ${stretchMode ? "flex justify-center" : "inline-flex justify-center min-w-full"} ${filmGrain ? "film-grain" : ""}`}>
+        <div className={`relative ${stretchMode ? "flex justify-center" : "inline-flex justify-center min-w-full"}`}>
           <img
             ref={imageRef}
             src={imageUrl}

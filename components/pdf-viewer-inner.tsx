@@ -33,7 +33,6 @@ interface PDFViewerInnerProps {
   showZenControls?: boolean;
   initialPage?: number;
   initialScale?: number | null;
-  filmGrain?: boolean;
   onPageChange?: (current: number, total: number) => void;
   onScaleChange?: (scale: number) => void;
   onViewerReady?: (controls: {
@@ -63,7 +62,6 @@ export function PDFViewerInner({
   showZenControls = false,
   initialPage = 1,
   initialScale = null,
-  filmGrain = false,
   onPageChange,
   onScaleChange,
   onViewerReady,
@@ -104,7 +102,7 @@ export function PDFViewerInner({
           if (page >= 1 && page <= totalPages) { clearOCR(); setCurrentPage(page); }
         },
         zoomIn: () => setScale((prev) => Math.min((prev || 1) + 0.2, 9)),
-        zoomOut: () => setScale((prev) => Math.max((prev || 1) - 0.2, 0.3)),
+        zoomOut: () => setScale((prev) => Math.max((prev || 1) - 0.2, 0.01)),
         startOCR: () => {
           if (canvasRef.current) runOCR(canvasRef.current);
         },
@@ -162,8 +160,8 @@ export function PDFViewerInner({
     const viewport = page.getViewport({ scale: 1, rotation: 0 });
     const containerWidth = containerRef.current.clientWidth - 32;
     const containerHeight = containerRef.current.clientHeight - 32;
-    if (mode === 'height') return Math.min(Math.max(containerHeight / viewport.height, 0.3), 9);
-    return Math.min(Math.max(containerWidth / viewport.width, 0.3), 9);
+    if (mode === 'height') return Math.min(Math.max(containerHeight / viewport.height, 0.01), 9);
+    return Math.min(Math.max(containerWidth / viewport.width, 0.01), 9);
   }, []);
 
   const loadPDF = useCallback(async () => {
@@ -288,7 +286,7 @@ export function PDFViewerInner({
   const goToPrevPage = () => { if (currentPage > 1) { clearOCR(); setCurrentPage(currentPage - 1); } };
   const goToNextPage = () => { if (currentPage < totalPages) { clearOCR(); setCurrentPage(currentPage + 1); } };
   const zoomIn = () => setScale((prev) => Math.min((prev || 1) + 0.2, 9));
-  const zoomOut = () => setScale((prev) => Math.max((prev || 1) - 0.2, 0.3));
+  const zoomOut = () => setScale((prev) => Math.max((prev || 1) - 0.2, 0.01));
   const zoomToFit = async () => { if (pdfDoc) setScale(await calculateFitScale(pdfDoc, 'width')); };
   const zoomToFitHeight = async () => { if (pdfDoc) setScale(await calculateFitScale(pdfDoc, 'height')); };
   const rotate = () => setRotation((prev) => (prev + 90) % 360);
@@ -571,7 +569,7 @@ export function PDFViewerInner({
         onMouseLeave={handleMouseLeave}
       >
         <div className="flex justify-center">
-          <div className={`relative ${filmGrain ? "film-grain" : ""}`}>
+          <div className="relative">
             <canvas ref={canvasRef} style={getFilterStyle()} className="rounded-sm shadow-lg" />
             {/* Link annotations overlay */}
             {linkAnnotations.length > 0 && (
