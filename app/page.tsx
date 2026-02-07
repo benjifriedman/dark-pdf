@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { PDFViewer } from "@/components/pdf-viewer";
+import { ImageViewer } from "@/components/image-viewer";
 import { PDFInput } from "@/components/pdf-input";
 import { FilterControls } from "@/components/filter-controls";
 import { PresetManager } from "@/components/preset-manager";
@@ -53,6 +54,9 @@ const defaultFilters: FilterSettings = {
 function HomeContent() {
   const [pdfSource, setPdfSource] = useState<string | ArrayBuffer | null>(null);
   const [pdfFileName, setPdfFileName] = useState<string | null>(null);
+  const [imageSource, setImageSource] = useState<ArrayBuffer | null>(null);
+  const [imageFileName, setImageFileName] = useState<string | null>(null);
+  const [fileType, setFileType] = useState<'pdf' | 'image' | null>(null);
   const [darkMode, setDarkMode] = useState(defaultFilters.darkMode);
   const [smartDarkMode, setSmartDarkMode] = useState(defaultFilters.smartDarkMode);
   const [inversion, setInversion] = useState(defaultFilters.inversion);
@@ -74,6 +78,8 @@ function HomeContent() {
 
   const { saveSession, loadSession } = useSessionPersistence();
 
+  const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp"];
+
   useEffect(() => {
     const stored = localStorage.getItem(PRESETS_STORAGE_KEY);
     if (stored) {
@@ -82,11 +88,29 @@ function HomeContent() {
   }, []);
 
   const handleFileDrop = useCallback((file: File) => {
-    if (file.type !== "application/pdf") return;
-    setPdfFileName(file.name);
+    const isPDF = file.type === "application/pdf";
+    const isImage = IMAGE_TYPES.includes(file.type);
+    
+    if (!isPDF && !isImage) return;
+    
     const reader = new FileReader();
     reader.onload = (e) => {
-      if (e.target?.result) setPdfSource(e.target.result as ArrayBuffer);
+      if (e.target?.result) {
+        if (isPDF) {
+          setImageSource(null);
+          setImageFileName(null);
+          setPdfSource(e.target.result as ArrayBuffer);
+          setPdfFileName(file.name);
+          setFileType('pdf');
+        } else {
+          setPdfSource(null);
+          setPdfFileName(null);
+          setImageSource(e.target.result as ArrayBuffer);
+          setImageFileName(file.name);
+          setFileType('image');
+          setTotalPages(0);
+        }
+      }
     };
     reader.readAsArrayBuffer(file);
   }, []);
@@ -162,6 +186,11 @@ function HomeContent() {
   }, [isZenMode]);
 
   const handleLoadPDF = async (source: string | ArrayBuffer, fileName?: string) => {
+    // Clear image state
+    setImageSource(null);
+    setImageFileName(null);
+    setFileType('pdf');
+    
     setPdfSource(source);
     setPdfFileName(fileName || null);
     const session = await loadSession(source);
@@ -177,6 +206,17 @@ function HomeContent() {
         setSepia(session.filters.sepia);
       }
     }
+  };
+
+  const handleLoadImage = (source: ArrayBuffer, fileName: string) => {
+    // Clear PDF state
+    setPdfSource(null);
+    setPdfFileName(null);
+    setTotalPages(0);
+    setFileType('image');
+    
+    setImageSource(source);
+    setImageFileName(fileName);
   };
 
   const handleApplyPreset = (preset: { inversion: number; brightness: number; contrast: number; sepia: number }) => {
@@ -285,7 +325,7 @@ function HomeContent() {
                   <SheetDescription className="text-muted-foreground">Configure your PDF viewing experience</SheetDescription>
                 </SheetHeader>
                 <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-8 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                  <PDFInput onLoadPDF={handleLoadPDF} />
+                  <PDFInput onLoadPDF={handleLoadPDF} onLoadImage={handleLoadImage} />
                   <div className="border-t border-border pt-6">
                     <FilterControls {...filterControlsProps} />
                   </div>
@@ -303,7 +343,7 @@ function HomeContent() {
         {sidebarOpen && !isZenMode && (
           <aside className="hidden w-80 flex-shrink-0 overflow-y-auto border-r border-border bg-card p-6 lg:block scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             <div className="space-y-8">
-              <PDFInput onLoadPDF={handleLoadPDF} />
+              <PDFInput onLoadPDF={handleLoadPDF} onLoadImage={handleLoadImage} />
               <div className="border-t border-border pt-6">
                 <FilterControls {...filterControlsProps} />
               </div>
@@ -315,27 +355,41 @@ function HomeContent() {
         )}
 
         <main className="flex-1 overflow-hidden">
-          <PDFViewer
-            pdfSource={pdfSource}
-            pdfFileName={pdfFileName}
-            darkMode={darkMode}
-            smartDarkMode={smartDarkMode}
-            inversion={inversion}
-            brightness={brightness}
-            contrast={contrast}
-            sepia={sepia}
-            isZenMode={isZenMode}
-            showZenControls={showZenControls}
-            initialPage={currentPage}
-            initialScale={viewerScale}
-            onPageChange={handlePageChange}
-            onScaleChange={handleScaleChange}
-            onViewerReady={handleViewerReady}
-          />
+          {fileType === 'image' && imageSource ? (
+            <ImageViewer
+              imageSource={imageSource}
+              fileName={imageFileName}
+              darkMode={darkMode}
+              smartDarkMode={smartDarkMode}
+              inversion={inversion}
+              brightness={brightness}
+              contrast={contrast}
+              sepia={sepia}
+              isZenMode={isZenMode}
+            />
+          ) : (
+            <PDFViewer
+              pdfSource={pdfSource}
+              pdfFileName={pdfFileName}
+              darkMode={darkMode}
+              smartDarkMode={smartDarkMode}
+              inversion={inversion}
+              brightness={brightness}
+              contrast={contrast}
+              sepia={sepia}
+              isZenMode={isZenMode}
+              showZenControls={showZenControls}
+              initialPage={currentPage}
+              initialScale={viewerScale}
+              onPageChange={handlePageChange}
+              onScaleChange={handleScaleChange}
+              onViewerReady={handleViewerReady}
+            />
+          )}
         </main>
       </div>
 
-      {isZenMode && showZenControls && (
+      {isZenMode && showZenControls && fileType === 'pdf' && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4">
           <div className="flex items-center gap-2 rounded-full bg-card/95 px-4 py-2 shadow-lg backdrop-blur border border-border">
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => goToPageFn?.(currentPage - 1)} disabled={currentPage <= 1}>

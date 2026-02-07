@@ -6,13 +6,16 @@ import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Link, Upload, FileText, X } from "lucide-react";
+import { Link, Upload, FileText, X, Image } from "lucide-react";
 
 interface PDFInputProps {
   onLoadPDF: (source: string | ArrayBuffer, fileName?: string) => void;
+  onLoadImage: (source: ArrayBuffer, fileName: string) => void;
 }
 
-export function PDFInput({ onLoadPDF }: PDFInputProps) {
+const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif", "image/bmp"];
+
+export function PDFInput({ onLoadPDF, onLoadImage }: PDFInputProps) {
   const [url, setUrl] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -29,8 +32,11 @@ export function PDFInput({ onLoadPDF }: PDFInputProps) {
   const handleFileChange = (file: File | null) => {
     if (!file) return;
 
-    if (file.type !== "application/pdf") {
-      alert("Please select a PDF file");
+    const isPDF = file.type === "application/pdf";
+    const isImage = ACCEPTED_IMAGE_TYPES.includes(file.type);
+
+    if (!isPDF && !isImage) {
+      alert("Please select a PDF or image file (PNG, JPG, WEBP, GIF, BMP)");
       return;
     }
 
@@ -38,7 +44,11 @@ export function PDFInput({ onLoadPDF }: PDFInputProps) {
     const reader = new FileReader();
     reader.onload = (e) => {
       if (e.target?.result) {
-        onLoadPDF(e.target.result as ArrayBuffer, file.name);
+        if (isPDF) {
+          onLoadPDF(e.target.result as ArrayBuffer, file.name);
+        } else {
+          onLoadImage(e.target.result as ArrayBuffer, file.name);
+        }
       }
     };
     reader.readAsArrayBuffer(file);
@@ -101,7 +111,7 @@ export function PDFInput({ onLoadPDF }: PDFInputProps) {
 
       {/* File Upload */}
       <div className="space-y-2">
-        <Label className="text-sm text-foreground">Upload PDF</Label>
+        <Label className="text-sm text-foreground">Upload File</Label>
         <div
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -115,14 +125,18 @@ export function PDFInput({ onLoadPDF }: PDFInputProps) {
           <input
             ref={fileInputRef}
             type="file"
-            accept="application/pdf"
+            accept="application/pdf,image/png,image/jpeg,image/webp,image/gif,image/bmp"
             onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
             className="absolute inset-0 cursor-pointer opacity-0"
           />
           
           {fileName ? (
             <div className="flex items-center gap-2 min-w-0">
-              <FileText className="h-5 w-5 flex-shrink-0 text-primary" />
+              {fileName.toLowerCase().endsWith('.pdf') ? (
+                <FileText className="h-5 w-5 flex-shrink-0 text-primary" />
+              ) : (
+                <Image className="h-5 w-5 flex-shrink-0 text-primary" />
+              )}
               <span 
                 className="text-sm text-foreground truncate flex-1"
                 title={fileName}
@@ -146,10 +160,10 @@ export function PDFInput({ onLoadPDF }: PDFInputProps) {
               <Upload className="h-8 w-8 text-muted-foreground" />
               <div>
                 <p className="text-sm text-foreground">
-                  Drop your PDF here or click to browse
+                  Drop your file here or click to browse
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Supports PDF files only
+                  Supports PDF and images (PNG, JPG, WEBP, GIF, BMP)
                 </p>
               </div>
             </div>

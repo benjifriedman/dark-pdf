@@ -16,9 +16,9 @@ export function GlobalDropOverlay({ isDragging }: GlobalDropOverlayProps) {
           <Upload className="h-12 w-12 text-primary" />
         </div>
         <div className="text-center">
-          <h3 className="text-xl font-semibold text-foreground">Drop your PDF here</h3>
+          <h3 className="text-xl font-semibold text-foreground">Drop your file here</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Release to open the document
+            PDF or image (PNG, JPG, WEBP, GIF, BMP)
           </p>
         </div>
       </div>

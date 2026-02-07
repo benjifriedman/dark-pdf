@@ -1,12 +1,13 @@
 # Dark PDF
 
-A web app for reading PDFs comfortably in dark mode with customizable filters.
+A web app for reading PDFs and images comfortably in dark mode with customizable filters.
 
 ## Features
 
 - **Dark Mode Filters** - Adjustable inversion, brightness, contrast, and sepia
 - **Smart Dark Mode** - Preserves image colors while inverting text/backgrounds using hue rotation
-- **Export with Filters** - Save PDFs with your filter settings applied
+- **PDF & Image Support** - Load PDFs or images (PNG, JPG, WEBP, GIF, BMP)
+- **Export with Filters** - Save files with your filter settings applied (same format as input)
 - **Presets** - Save and load your favorite filter configurations (collapsible panel)
 - **Clickable Links** - Internal page links and external URLs work as expected
 - **Deep Zoom** - Zoom up to 900% with horizontal scrolling

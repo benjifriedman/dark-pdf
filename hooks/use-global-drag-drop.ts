@@ -7,7 +7,7 @@ interface UseGlobalDragDropOptions {
   acceptedTypes?: string[];
 }
 
-export function useGlobalDragDrop({ onFileDrop, acceptedTypes = ["application/pdf"] }: UseGlobalDragDropOptions) {
+export function useGlobalDragDrop({ onFileDrop, acceptedTypes = ["application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp"] }: UseGlobalDragDropOptions) {
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0);
 
