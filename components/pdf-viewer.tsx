@@ -28,6 +28,7 @@ interface PDFViewerProps {
   showZenControls?: boolean;
   initialPage?: number;
   initialScale?: number | null;
+  filmGrain?: boolean;
   onPageChange?: (current: number, total: number) => void;
   onScaleChange?: (scale: number) => void;
   onViewerReady?: (controls: {

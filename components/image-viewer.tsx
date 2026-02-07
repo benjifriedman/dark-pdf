@@ -23,6 +23,7 @@ interface ImageViewerProps {
   sepia: number;
   isZenMode?: boolean;
   stretchMode?: boolean;
+  filmGrain?: boolean;
 }
 
 export function ImageViewer({
@@ -36,6 +37,7 @@ export function ImageViewer({
   sepia,
   isZenMode = false,
   stretchMode = false,
+  filmGrain = false,
 }: ImageViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -307,7 +309,7 @@ export function ImageViewer({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
       >
-        <div className={stretchMode ? "flex justify-center" : "inline-flex justify-center min-w-full"}>
+        <div className={`relative ${stretchMode ? "flex justify-center" : "inline-flex justify-center min-w-full"} ${filmGrain ? "film-grain" : ""}`}>
           <img
             ref={imageRef}
             src={imageUrl}

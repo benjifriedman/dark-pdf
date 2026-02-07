@@ -33,6 +33,7 @@ interface PDFViewerInnerProps {
   showZenControls?: boolean;
   initialPage?: number;
   initialScale?: number | null;
+  filmGrain?: boolean;
   onPageChange?: (current: number, total: number) => void;
   onScaleChange?: (scale: number) => void;
   onViewerReady?: (controls: {
@@ -62,6 +63,7 @@ export function PDFViewerInner({
   showZenControls = false,
   initialPage = 1,
   initialScale = null,
+  filmGrain = false,
   onPageChange,
   onScaleChange,
   onViewerReady,
@@ -569,7 +571,7 @@ export function PDFViewerInner({
         onMouseLeave={handleMouseLeave}
       >
         <div className="flex justify-center">
-          <div className="relative">
+          <div className={`relative ${filmGrain ? "film-grain" : ""}`}>
             <canvas ref={canvasRef} style={getFilterStyle()} className="rounded-sm shadow-lg" />
             {/* Link annotations overlay */}
             {linkAnnotations.length > 0 && (
