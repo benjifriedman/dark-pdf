@@ -48,6 +48,7 @@ export function ImageViewer({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
   const [canPan, setCanPan] = useState(false);
   const [mimeType, setMimeType] = useState("image/png");
+  const [fitMode, setFitMode] = useState<'width' | 'height' | null>('width');
 
   // Convert ArrayBuffer to data URL
   useEffect(() => {
@@ -91,8 +92,32 @@ export function ImageViewer({
   useEffect(() => {
     if (imageSize.width && containerRef.current) {
       setScale(calculateFitScale('width'));
+      setFitMode('width');
     }
   }, [imageSize, calculateFitScale]);
+
+  // Auto-resize when in fit mode and container dimensions change
+  useEffect(() => {
+    if (!fitMode || !imageSize.width || !containerRef.current) return;
+    
+    const container = containerRef.current;
+    let resizeTimeout: NodeJS.Timeout;
+    
+    const handleResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        setScale(calculateFitScale(fitMode));
+      }, 100);
+    };
+    
+    const resizeObserver = new ResizeObserver(handleResize);
+    resizeObserver.observe(container);
+    
+    return () => {
+      clearTimeout(resizeTimeout);
+      resizeObserver.disconnect();
+    };
+  }, [fitMode, imageSize, calculateFitScale]);
 
   // Check if content overflows container
   useEffect(() => {
@@ -132,10 +157,10 @@ export function ImageViewer({
   const handleMouseUp = () => setIsDragging(false);
   const handleMouseLeave = () => setIsDragging(false);
 
-  const zoomIn = () => setScale((prev) => Math.min(prev + 0.2, 9));
-  const zoomOut = () => setScale((prev) => Math.max(prev - 0.2, 0.01));
-  const zoomToFit = () => setScale(calculateFitScale('width'));
-  const zoomToFitHeight = () => setScale(calculateFitScale('height'));
+  const zoomIn = () => { setFitMode(null); setScale((prev) => Math.min(prev + 0.2, 9)); };
+  const zoomOut = () => { setFitMode(null); setScale((prev) => Math.max(prev - 0.2, 0.01)); };
+  const zoomToFit = () => { setFitMode('width'); setScale(calculateFitScale('width')); };
+  const zoomToFitHeight = () => { setFitMode('height'); setScale(calculateFitScale('height')); };
   const rotate = () => setRotation((prev) => (prev + 90) % 360);
 
   const getFilterStyle = (): React.CSSProperties => {
@@ -295,8 +320,8 @@ export function ImageViewer({
           <Button variant="ghost" size="icon" onClick={zoomOut} title="Zoom out"><ZoomOut className="h-4 w-4" /></Button>
           <span className="min-w-[60px] text-center text-sm text-foreground">{Math.round(scale * 100)}%</span>
           <Button variant="ghost" size="icon" onClick={zoomIn} title="Zoom in"><ZoomIn className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={zoomToFit} title="Fit to width"><MoveHorizontal className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={zoomToFitHeight} title="Fit to height"><MoveVertical className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={zoomToFit} title="Fit to width" className={fitMode === 'width' ? "bg-accent" : ""}><MoveHorizontal className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={zoomToFitHeight} title="Fit to height" className={fitMode === 'height' ? "bg-accent" : ""}><MoveVertical className="h-4 w-4" /></Button>
           <Button variant="ghost" size="icon" onClick={rotate} title="Rotate"><RotateCw className="h-4 w-4" /></Button>
           <div className="mx-2 h-4 w-px bg-border" />
           <Button variant="ghost" size={isExporting ? "sm" : "icon"} onClick={exportImage} disabled={isExporting} title="Export with filters" className={isExporting ? "gap-2" : ""}>

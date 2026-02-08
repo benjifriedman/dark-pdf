@@ -101,6 +101,7 @@ export function PDFViewerInner({
   const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [swipeStart, setSwipeStart] = useState<{ x: number; y: number } | null>(null);
   const [canPanHorizontally, setCanPanHorizontally] = useState(false);
+  const [fitMode, setFitMode] = useState<'width' | 'height' | null>(null);
 
   const { isProcessing: isOCRProcessing, progress: ocrProgress, text: ocrText, runOCR, clearResult: clearOCR } = useOCR();
 
@@ -121,8 +122,8 @@ export function PDFViewerInner({
             }
           }
         },
-        zoomIn: () => setScale((prev) => Math.min((prev || 1) + 0.2, 9)),
-        zoomOut: () => setScale((prev) => Math.max((prev || 1) - 0.2, 0.01)),
+        zoomIn: () => { setFitMode(null); setScale((prev) => Math.min((prev || 1) + 0.2, 9)); },
+        zoomOut: () => { setFitMode(null); setScale((prev) => Math.max((prev || 1) - 0.2, 0.01)); },
         startOCR: () => {
           if (canvasRef.current) runOCR(canvasRef.current);
         },
@@ -175,14 +176,16 @@ export function PDFViewerInner({
   }, []);
 
   const calculateFitScale = useCallback(async (pdf: any, mode: 'width' | 'height' = 'width') => {
-    if (!containerRef.current) return 1.5;
+    // Use the appropriate container based on scroll mode
+    const container = scrollMode ? scrollContainerRef.current : containerRef.current;
+    if (!container) return 1.5;
     const page = await pdf.getPage(1);
     const viewport = page.getViewport({ scale: 1, rotation: 0 });
-    const containerWidth = containerRef.current.clientWidth - 32;
-    const containerHeight = containerRef.current.clientHeight - 32;
+    const containerWidth = container.clientWidth - 32;
+    const containerHeight = container.clientHeight - 32;
     if (mode === 'height') return Math.min(Math.max(containerHeight / viewport.height, 0.01), 9);
     return Math.min(Math.max(containerWidth / viewport.width, 0.01), 9);
-  }, []);
+  }, [scrollMode]);
 
   const loadPDF = useCallback(async () => {
     if (!pdfSource || !pdfjsReady || !window.pdfjsLib) return;
@@ -435,6 +438,34 @@ export function PDFViewerInner({
     scrollToPageRef.current = scrollToPage;
   }, [scrollToPage]);
 
+  // Auto-resize when in fit mode and container dimensions change
+  useEffect(() => {
+    if (!fitMode || !pdfDoc) return;
+    
+    // Use the appropriate container based on scroll mode
+    const container = scrollMode ? scrollContainerRef.current : containerRef.current;
+    if (!container) return;
+    
+    let resizeTimeout: NodeJS.Timeout;
+    
+    const handleResize = () => {
+      // Debounce to avoid excessive recalculations during resize
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(async () => {
+        const newScale = await calculateFitScale(pdfDoc, fitMode);
+        setScale(newScale);
+      }, 100);
+    };
+    
+    const resizeObserver = new ResizeObserver(handleResize);
+    resizeObserver.observe(container);
+    
+    return () => {
+      clearTimeout(resizeTimeout);
+      resizeObserver.disconnect();
+    };
+  }, [fitMode, pdfDoc, calculateFitScale, scrollMode]);
+
   const goToPrevPage = () => { 
     if (currentPage > 1) { 
       clearOCR(); 
@@ -451,10 +482,10 @@ export function PDFViewerInner({
       if (scrollMode) scrollToPage(newPage);
     } 
   };
-  const zoomIn = () => setScale((prev) => Math.min((prev || 1) + 0.2, 9));
-  const zoomOut = () => setScale((prev) => Math.max((prev || 1) - 0.2, 0.01));
-  const zoomToFit = async () => { if (pdfDoc) setScale(await calculateFitScale(pdfDoc, 'width')); };
-  const zoomToFitHeight = async () => { if (pdfDoc) setScale(await calculateFitScale(pdfDoc, 'height')); };
+  const zoomIn = () => { setFitMode(null); setScale((prev) => Math.min((prev || 1) + 0.2, 9)); };
+  const zoomOut = () => { setFitMode(null); setScale((prev) => Math.max((prev || 1) - 0.2, 0.01)); };
+  const zoomToFit = async () => { if (pdfDoc) { setFitMode('width'); setScale(await calculateFitScale(pdfDoc, 'width')); } };
+  const zoomToFitHeight = async () => { if (pdfDoc) { setFitMode('height'); setScale(await calculateFitScale(pdfDoc, 'height')); } };
   const rotate = () => setRotation((prev) => (prev + 90) % 360);
 
   const handlePageClick = () => {
@@ -774,8 +805,8 @@ export function PDFViewerInner({
           <Button variant="ghost" size="icon" onClick={zoomOut} title="Zoom out"><ZoomOut className="h-4 w-4" /></Button>
           <span className="min-w-[60px] text-center text-sm text-foreground">{Math.round((scale || 1) * 100)}%</span>
           <Button variant="ghost" size="icon" onClick={zoomIn} title="Zoom in"><ZoomIn className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={zoomToFit} title="Fit to width"><MoveHorizontal className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={zoomToFitHeight} title="Fit to height"><MoveVertical className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={zoomToFit} title="Fit to width" className={fitMode === 'width' ? "bg-accent" : ""}><MoveHorizontal className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={zoomToFitHeight} title="Fit to height" className={fitMode === 'height' ? "bg-accent" : ""}><MoveVertical className="h-4 w-4" /></Button>
           <Button variant="ghost" size="icon" onClick={rotate} title="Rotate"><RotateCw className="h-4 w-4" /></Button>
           <div className="mx-2 h-4 w-px bg-border" />
           <Button 
