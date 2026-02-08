@@ -100,6 +100,7 @@ export function PDFViewerInner({
   const [renderedPages, setRenderedPages] = useState<Set<number>>(new Set());
   const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [swipeStart, setSwipeStart] = useState<{ x: number; y: number } | null>(null);
+  const [canPanHorizontally, setCanPanHorizontally] = useState(false);
 
   const { isProcessing: isOCRProcessing, progress: ocrProgress, text: ocrText, runOCR, clearResult: clearOCR } = useOCR();
 
@@ -496,8 +497,11 @@ export function PDFViewerInner({
     const container = containerRef.current;
     if (!container) return;
     const checkOverflow = () => {
-      const hasOverflow = container.scrollWidth > container.clientWidth || container.scrollHeight > container.clientHeight;
+      const hasHorizontalOverflow = container.scrollWidth > container.clientWidth;
+      const hasVerticalOverflow = container.scrollHeight > container.clientHeight;
+      const hasOverflow = hasHorizontalOverflow || hasVerticalOverflow;
       setCanPan(hasOverflow);
+      setCanPanHorizontally(hasHorizontalOverflow);
     };
     checkOverflow();
     const resizeObserver = new ResizeObserver(checkOverflow);
@@ -519,8 +523,11 @@ export function PDFViewerInner({
         scrollLeft: containerRef.current.scrollLeft,
         scrollTop: containerRef.current.scrollTop,
       });
-    } else if (!scrollMode) {
-      // Not zoomed - track for swipe
+    }
+    
+    // Allow swipe when not in scroll mode and no horizontal overflow
+    // (swipe works even with vertical overflow, e.g., "fit horizontal" mode)
+    if (!scrollMode && !canPanHorizontally) {
       setSwipeStart({ x: e.clientX, y: e.clientY });
     }
   };
@@ -562,13 +569,14 @@ export function PDFViewerInner({
 
   // Touch handlers for mobile swipe
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (scrollMode || canPan) return;
+    // Allow swipe when not in scroll mode and no horizontal overflow
+    if (scrollMode || canPanHorizontally) return;
     const touch = e.touches[0];
     setSwipeStart({ x: touch.clientX, y: touch.clientY });
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!swipeStart || scrollMode || canPan) return;
+    if (!swipeStart || scrollMode || canPanHorizontally) return;
     const touch = e.changedTouches[0];
     const dx = touch.clientX - swipeStart.x;
     const dy = touch.clientY - swipeStart.y;
