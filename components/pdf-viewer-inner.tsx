@@ -99,6 +99,7 @@ export function PDFViewerInner({
   const [canPan, setCanPan] = useState(false);
   const [renderedPages, setRenderedPages] = useState<Set<number>>(new Set());
   const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [swipeStart, setSwipeStart] = useState<{ x: number; y: number } | null>(null);
 
   const { isProcessing: isOCRProcessing, progress: ocrProgress, text: ocrText, runOCR, clearResult: clearOCR } = useOCR();
 
@@ -504,18 +505,24 @@ export function PDFViewerInner({
     return () => resizeObserver.disconnect();
   }, [canvasSize, scale]);
 
-  // Drag-to-pan handlers
+  // Drag-to-pan handlers (when zoomed in)
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (!canPan || !containerRef.current) return;
     // Don't start drag if clicking on a link or button
     if ((e.target as HTMLElement).closest('button')) return;
-    setIsDragging(true);
-    setDragStart({
-      x: e.clientX,
-      y: e.clientY,
-      scrollLeft: containerRef.current.scrollLeft,
-      scrollTop: containerRef.current.scrollTop,
-    });
+    
+    if (canPan && containerRef.current) {
+      // Zoomed in - enable panning
+      setIsDragging(true);
+      setDragStart({
+        x: e.clientX,
+        y: e.clientY,
+        scrollLeft: containerRef.current.scrollLeft,
+        scrollTop: containerRef.current.scrollTop,
+      });
+    } else if (!scrollMode) {
+      // Not zoomed - track for swipe
+      setSwipeStart({ x: e.clientX, y: e.clientY });
+    }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -527,12 +534,55 @@ export function PDFViewerInner({
     containerRef.current.scrollTop = dragStart.scrollTop - dy;
   };
 
-  const handleMouseUp = () => {
-    setIsDragging(false);
+  const handleMouseUp = (e: React.MouseEvent) => {
+    if (isDragging) {
+      setIsDragging(false);
+    } else if (swipeStart && !scrollMode) {
+      // Check for swipe gesture
+      const dx = e.clientX - swipeStart.x;
+      const dy = e.clientY - swipeStart.y;
+      const SWIPE_THRESHOLD = 50;
+      
+      // Only trigger if horizontal swipe is dominant
+      if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        if (dx > 0) {
+          goToPrevPage();
+        } else {
+          goToNextPage();
+        }
+      }
+      setSwipeStart(null);
+    }
   };
 
   const handleMouseLeave = () => {
     setIsDragging(false);
+    setSwipeStart(null);
+  };
+
+  // Touch handlers for mobile swipe
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (scrollMode || canPan) return;
+    const touch = e.touches[0];
+    setSwipeStart({ x: touch.clientX, y: touch.clientY });
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!swipeStart || scrollMode || canPan) return;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - swipeStart.x;
+    const dy = touch.clientY - swipeStart.y;
+    const SWIPE_THRESHOLD = 50;
+    
+    // Only trigger if horizontal swipe is dominant
+    if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx > 0) {
+        goToPrevPage();
+      } else {
+        goToNextPage();
+      }
+    }
+    setSwipeStart(null);
   };
 
   const getFilterStyle = (): React.CSSProperties => {
@@ -744,6 +794,8 @@ export function PDFViewerInner({
         onMouseMove={scrollMode ? undefined : handleMouseMove}
         onMouseUp={scrollMode ? undefined : handleMouseUp}
         onMouseLeave={scrollMode ? undefined : handleMouseLeave}
+        onTouchStart={scrollMode ? undefined : handleTouchStart}
+        onTouchEnd={scrollMode ? undefined : handleTouchEnd}
       >
         {scrollMode ? (
           /* Scroll mode: render all pages vertically */
