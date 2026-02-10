@@ -102,6 +102,11 @@ export function PDFViewerInner({
   const [swipeStart, setSwipeStart] = useState<{ x: number; y: number } | null>(null);
   const [canPanHorizontally, setCanPanHorizontally] = useState(false);
   const [fitMode, setFitMode] = useState<'width' | 'height' | null>(null);
+  
+  // Pinch-to-zoom state
+  const [isPinching, setIsPinching] = useState(false);
+  const initialPinchDistance = useRef<number | null>(null);
+  const initialPinchScale = useRef<number | null>(null);
 
   const { isProcessing: isOCRProcessing, progress: ocrProgress, text: ocrText, runOCR, clearResult: clearOCR } = useOCR();
 
@@ -250,9 +255,22 @@ export function PDFViewerInner({
       const canvas = canvasRef.current;
       const context = canvas.getContext("2d");
       if (!context) return;
+      
+      // Use device pixel ratio for crisp text on high-DPI displays
+      const dpr = window.devicePixelRatio || 1;
       const viewport = page.getViewport({ scale, rotation });
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
+      
+      // Set canvas size to account for device pixel ratio
+      canvas.width = viewport.width * dpr;
+      canvas.height = viewport.height * dpr;
+      
+      // Scale canvas back down with CSS for correct display size
+      canvas.style.width = `${viewport.width}px`;
+      canvas.style.height = `${viewport.height}px`;
+      
+      // Scale context to match device pixel ratio
+      context.scale(dpr, dpr);
+      
       setCanvasSize({ width: viewport.width, height: viewport.height });
       renderTaskRef.current = page.render({ canvasContext: context, viewport });
       await renderTaskRef.current.promise;
@@ -330,9 +348,22 @@ export function PDFViewerInner({
         renderingPages.current.delete(pageNum);
         return;
       }
+      
+      // Use device pixel ratio for crisp text on high-DPI displays
+      const dpr = window.devicePixelRatio || 1;
       const viewport = page.getViewport({ scale, rotation });
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
+      
+      // Set canvas size to account for device pixel ratio
+      canvas.width = viewport.width * dpr;
+      canvas.height = viewport.height * dpr;
+      
+      // Scale canvas back down with CSS for correct display size
+      canvas.style.width = `${viewport.width}px`;
+      canvas.style.height = `${viewport.height}px`;
+      
+      // Scale context to match device pixel ratio
+      context.scale(dpr, dpr);
+      
       await page.render({ canvasContext: context, viewport }).promise;
       setRenderedPages(prev => new Set([...prev, pageNum]));
     } catch (err: any) {
@@ -598,27 +629,106 @@ export function PDFViewerInner({
     setSwipeStart(null);
   };
 
-  // Touch handlers for mobile swipe
+  // Touch handlers for mobile swipe and pinch-to-zoom
   const handleTouchStart = (e: React.TouchEvent) => {
-    // Allow swipe when not in scroll mode and no horizontal overflow
-    if (scrollMode || canPanHorizontally) return;
-    const touch = e.touches[0];
-    setSwipeStart({ x: touch.clientX, y: touch.clientY });
+    if (scrollMode) return;
+    
+    // Pinch-to-zoom with two fingers
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+      initialPinchDistance.current = distance;
+      initialPinchScale.current = scale;
+      setIsPinching(true);
+      setSwipeStart(null);
+      return;
+    }
+    
+    // Single finger - could be swipe or pan
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      
+      // If we can pan (zoomed in), start panning
+      if (canPan && containerRef.current) {
+        setIsDragging(true);
+        setDragStart({
+          x: touch.clientX,
+          y: touch.clientY,
+          scrollLeft: containerRef.current.scrollLeft,
+          scrollTop: containerRef.current.scrollTop,
+        });
+      }
+      
+      // Track for potential swipe (only if no horizontal overflow)
+      if (!canPanHorizontally) {
+        setSwipeStart({ x: touch.clientX, y: touch.clientY });
+      }
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (scrollMode) return;
+    
+    // Handle pinch-to-zoom
+    if (isPinching && e.touches.length === 2 && initialPinchDistance.current && initialPinchScale.current) {
+      e.preventDefault();
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+      const scaleChange = distance / initialPinchDistance.current;
+      const newScale = Math.min(Math.max(initialPinchScale.current * scaleChange, 0.1), 9);
+      setFitMode(null);
+      setScale(newScale);
+      return;
+    }
+    
+    // Handle single-finger pan when zoomed
+    if (isDragging && e.touches.length === 1 && containerRef.current) {
+      const touch = e.touches[0];
+      const dx = touch.clientX - dragStart.x;
+      const dy = touch.clientY - dragStart.y;
+      containerRef.current.scrollLeft = dragStart.scrollLeft - dx;
+      containerRef.current.scrollTop = dragStart.scrollTop - dy;
+      
+      // If we've moved significantly, cancel the swipe
+      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+        setSwipeStart(null);
+      }
+    }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!swipeStart || scrollMode || canPanHorizontally) return;
-    const touch = e.changedTouches[0];
-    const dx = touch.clientX - swipeStart.x;
-    const dy = touch.clientY - swipeStart.y;
-    const SWIPE_THRESHOLD = 50;
+    if (scrollMode) return;
     
-    // Only trigger if horizontal swipe is dominant
-    if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      if (dx > 0) {
-        goToPrevPage();
-      } else {
-        goToNextPage();
+    // End pinch
+    if (isPinching) {
+      setIsPinching(false);
+      initialPinchDistance.current = null;
+      initialPinchScale.current = null;
+      return;
+    }
+    
+    // End drag
+    if (isDragging) {
+      setIsDragging(false);
+    }
+    
+    // Check for swipe gesture (only if we weren't panning horizontally)
+    if (swipeStart && !canPanHorizontally) {
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - swipeStart.x;
+      const dy = touch.clientY - swipeStart.y;
+      const SWIPE_THRESHOLD = 50;
+      
+      // Only trigger if horizontal swipe is dominant
+      if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        if (dx > 0) {
+          goToPrevPage();
+        } else {
+          goToNextPage();
+        }
       }
     }
     setSwipeStart(null);
@@ -774,9 +884,9 @@ export function PDFViewerInner({
   return (
     <div className="flex h-full flex-col">
       {/* Toolbar */}
-      <div className={`flex items-center justify-between border-b border-border bg-card px-4 py-2 transition-all duration-300 ${toolbarHidden ? "opacity-0 pointer-events-none h-0 py-0 border-0 overflow-hidden" : "opacity-100"}`}>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={goToPrevPage} disabled={currentPage <= 1}><ChevronLeft className="h-4 w-4" /></Button>
+      <div className={`flex items-center justify-between border-b border-border bg-card px-2 sm:px-4 py-2 transition-all duration-300 ${toolbarHidden ? "opacity-0 pointer-events-none h-0 py-0 border-0 overflow-hidden" : "opacity-100"}`}>
+        <div className="flex items-center gap-1 sm:gap-2">
+          <Button variant="ghost" size="icon" onClick={goToPrevPage} disabled={currentPage <= 1} className="h-8 w-8 sm:h-9 sm:w-9"><ChevronLeft className="h-4 w-4" /></Button>
           {isEditingPage ? (
             <div className="flex items-center gap-1">
               <input
@@ -794,33 +904,33 @@ export function PDFViewerInner({
           ) : (
             <button
               onClick={handlePageClick}
-              className="min-w-[80px] rounded px-2 py-1 text-center text-sm text-foreground hover:bg-muted transition-colors"
+              className="min-w-[60px] sm:min-w-[80px] rounded px-1 sm:px-2 py-1 text-center text-xs sm:text-sm text-foreground hover:bg-muted transition-colors"
               title="Click to jump to page"
             >
               {currentPage} / {totalPages}
             </button>
           )}
-          <Button variant="ghost" size="icon" onClick={goToNextPage} disabled={currentPage >= totalPages}><ChevronRight className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={goToNextPage} disabled={currentPage >= totalPages} className="h-8 w-8 sm:h-9 sm:w-9"><ChevronRight className="h-4 w-4" /></Button>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={zoomOut} title="Zoom out"><ZoomOut className="h-4 w-4" /></Button>
-          <span className="min-w-[60px] text-center text-sm text-foreground">{Math.round((scale || 1) * 100)}%</span>
-          <Button variant="ghost" size="icon" onClick={zoomIn} title="Zoom in"><ZoomIn className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={zoomToFit} title="Fit to width" className={fitMode === 'width' ? "bg-accent" : ""}><MoveHorizontal className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={zoomToFitHeight} title="Fit to height" className={fitMode === 'height' ? "bg-accent" : ""}><MoveVertical className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={rotate} title="Rotate"><RotateCw className="h-4 w-4" /></Button>
-          <div className="mx-2 h-4 w-px bg-border" />
+        <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto">
+          <Button variant="ghost" size="icon" onClick={zoomOut} title="Zoom out" className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0"><ZoomOut className="h-4 w-4" /></Button>
+          <span className="min-w-[45px] sm:min-w-[60px] text-center text-xs sm:text-sm text-foreground flex-shrink-0">{Math.round((scale || 1) * 100)}%</span>
+          <Button variant="ghost" size="icon" onClick={zoomIn} title="Zoom in" className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0"><ZoomIn className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={zoomToFit} title="Fit to width" className={`h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 ${fitMode === 'width' ? "bg-accent" : ""}`}><MoveHorizontal className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={zoomToFitHeight} title="Fit to height" className={`h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 hidden sm:flex ${fitMode === 'height' ? "bg-accent" : ""}`}><MoveVertical className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={rotate} title="Rotate" className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 hidden sm:flex"><RotateCw className="h-4 w-4" /></Button>
+          <div className="mx-1 sm:mx-2 h-4 w-px bg-border hidden sm:block" />
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={() => onScrollModeChange?.(!scrollMode)} 
             title={scrollMode ? "Page mode" : "Scroll mode"}
-            className={scrollMode ? "bg-accent" : ""}
+            className={`h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 hidden sm:flex ${scrollMode ? "bg-accent" : ""}`}
           >
             {scrollMode ? <Square className="h-4 w-4" /> : <Rows3 className="h-4 w-4" />}
           </Button>
-          <Button variant="ghost" size="icon" onClick={handleStartOCR} disabled={isOCRProcessing || scrollMode} title={scrollMode ? "OCR disabled in scroll mode" : "Run OCR"}><ScanText className="h-4 w-4" /></Button>
-          <Button variant="ghost" size={isExporting ? "sm" : "icon"} onClick={exportPDF} disabled={isExporting} title="Export with filters" className={isExporting ? "gap-2" : ""}>
+          <Button variant="ghost" size="icon" onClick={handleStartOCR} disabled={isOCRProcessing || scrollMode} title={scrollMode ? "OCR disabled in scroll mode" : "Run OCR"} className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 hidden sm:flex"><ScanText className="h-4 w-4" /></Button>
+          <Button variant="ghost" size={isExporting ? "sm" : "icon"} onClick={exportPDF} disabled={isExporting} title="Export with filters" className={`h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 ${isExporting ? "gap-2" : ""}`}>
             {isExporting ? <><Loader2 className="h-4 w-4 animate-spin" /><span className="text-xs">{exportProgress}%</span></> : <Download className="h-4 w-4" />}
           </Button>
         </div>
@@ -829,12 +939,14 @@ export function PDFViewerInner({
       {/* PDF Canvas */}
       <div 
         ref={scrollMode ? scrollContainerRef : containerRef} 
-        className={`flex-1 overflow-auto bg-muted/50 p-4 ${!scrollMode && canPan ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
+        className={`flex-1 overflow-auto bg-muted/50 p-2 sm:p-4 ${!scrollMode && canPan ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
+        style={{ touchAction: scrollMode ? 'auto' : (canPan ? 'none' : 'pan-y') }}
         onMouseDown={scrollMode ? undefined : handleMouseDown}
         onMouseMove={scrollMode ? undefined : handleMouseMove}
         onMouseUp={scrollMode ? undefined : handleMouseUp}
         onMouseLeave={scrollMode ? undefined : handleMouseLeave}
         onTouchStart={scrollMode ? undefined : handleTouchStart}
+        onTouchMove={scrollMode ? undefined : handleTouchMove}
         onTouchEnd={scrollMode ? undefined : handleTouchEnd}
       >
         {scrollMode ? (
@@ -848,10 +960,10 @@ export function PDFViewerInner({
                     ref={(el) => {
                       if (el) {
                         pageRefs.current.set(pageNum, el);
-                        // Set placeholder dimensions on canvas if not yet rendered
-                        if (!isRendered && pageDimensions && el.width === 0) {
-                          el.width = pageDimensions.width;
-                          el.height = pageDimensions.height;
+                        // Set placeholder CSS dimensions if not yet rendered
+                        if (!isRendered && pageDimensions) {
+                          el.style.width = `${pageDimensions.width}px`;
+                          el.style.height = `${pageDimensions.height}px`;
                         }
                       } else {
                         pageRefs.current.delete(pageNum);
@@ -905,10 +1017,10 @@ export function PDFViewerInner({
 
       {/* Bottom Page Navigation */}
       {totalPages > 1 && !toolbarHidden && (
-        <div className="flex items-center justify-center gap-4 border-t border-border bg-card px-4 py-3">
-          <Button variant="outline" size="sm" onClick={goToPrevPage} disabled={currentPage <= 1} className="gap-1"><ChevronLeft className="h-4 w-4" />Previous</Button>
-          <span className="text-sm text-muted-foreground">Page {currentPage} of {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={goToNextPage} disabled={currentPage >= totalPages} className="gap-1">Next<ChevronRight className="h-4 w-4" /></Button>
+        <div className="flex items-center justify-center gap-2 sm:gap-4 border-t border-border bg-card px-2 sm:px-4 py-2 sm:py-3">
+          <Button variant="outline" size="sm" onClick={goToPrevPage} disabled={currentPage <= 1} className="gap-1 text-xs sm:text-sm"><ChevronLeft className="h-4 w-4" /><span className="hidden sm:inline">Previous</span></Button>
+          <span className="text-xs sm:text-sm text-muted-foreground">{currentPage} / {totalPages}</span>
+          <Button variant="outline" size="sm" onClick={goToNextPage} disabled={currentPage >= totalPages} className="gap-1 text-xs sm:text-sm"><span className="hidden sm:inline">Next</span><ChevronRight className="h-4 w-4" /></Button>
         </div>
       )}
     </div>

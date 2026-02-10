@@ -49,6 +49,11 @@ export function ImageViewer({
   const [canPan, setCanPan] = useState(false);
   const [mimeType, setMimeType] = useState("image/png");
   const [fitMode, setFitMode] = useState<'width' | 'height' | null>('width');
+  
+  // Pinch-to-zoom state
+  const [isPinching, setIsPinching] = useState(false);
+  const initialPinchDistance = useRef<number | null>(null);
+  const initialPinchScale = useRef<number | null>(null);
 
   // Convert ArrayBuffer to data URL
   useEffect(() => {
@@ -156,6 +161,66 @@ export function ImageViewer({
 
   const handleMouseUp = () => setIsDragging(false);
   const handleMouseLeave = () => setIsDragging(false);
+
+  // Touch handlers for mobile pinch-to-zoom and pan
+  const handleTouchStart = (e: React.TouchEvent) => {
+    // Pinch-to-zoom with two fingers
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+      initialPinchDistance.current = distance;
+      initialPinchScale.current = scale;
+      setIsPinching(true);
+      return;
+    }
+    
+    // Single finger pan when zoomed
+    if (e.touches.length === 1 && canPan && containerRef.current) {
+      const touch = e.touches[0];
+      setIsDragging(true);
+      setDragStart({
+        x: touch.clientX,
+        y: touch.clientY,
+        scrollLeft: containerRef.current.scrollLeft,
+        scrollTop: containerRef.current.scrollTop,
+      });
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    // Handle pinch-to-zoom
+    if (isPinching && e.touches.length === 2 && initialPinchDistance.current && initialPinchScale.current) {
+      e.preventDefault();
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+      const scaleChange = distance / initialPinchDistance.current;
+      const newScale = Math.min(Math.max(initialPinchScale.current * scaleChange, 0.1), 9);
+      setFitMode(null);
+      setScale(newScale);
+      return;
+    }
+    
+    // Handle single-finger pan when zoomed
+    if (isDragging && e.touches.length === 1 && containerRef.current) {
+      const touch = e.touches[0];
+      const dx = touch.clientX - dragStart.x;
+      const dy = touch.clientY - dragStart.y;
+      containerRef.current.scrollLeft = dragStart.scrollLeft - dx;
+      containerRef.current.scrollTop = dragStart.scrollTop - dy;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (isPinching) {
+      setIsPinching(false);
+      initialPinchDistance.current = null;
+      initialPinchScale.current = null;
+    }
+    setIsDragging(false);
+  };
 
   const zoomIn = () => { setFitMode(null); setScale((prev) => Math.min(prev + 0.2, 9)); };
   const zoomOut = () => { setFitMode(null); setScale((prev) => Math.max(prev - 0.2, 0.01)); };
@@ -314,21 +379,21 @@ export function ImageViewer({
   return (
     <div className="flex h-full flex-col">
       {/* Toolbar */}
-      <div className={`flex items-center justify-between border-b border-border bg-card px-4 py-2 transition-all duration-300 ${toolbarHidden ? "opacity-0 pointer-events-none h-0 py-0 border-0 overflow-hidden" : "opacity-100"}`}>
+      <div className={`flex items-center justify-between border-b border-border bg-card px-2 sm:px-4 py-2 transition-all duration-300 ${toolbarHidden ? "opacity-0 pointer-events-none h-0 py-0 border-0 overflow-hidden" : "opacity-100"}`}>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground truncate max-w-[200px]" title={fileName || "Image"}>
+          <span className="text-xs sm:text-sm text-muted-foreground truncate max-w-[100px] sm:max-w-[200px]" title={fileName || "Image"}>
             {fileName || "Image"}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={zoomOut} title="Zoom out"><ZoomOut className="h-4 w-4" /></Button>
-          <span className="min-w-[60px] text-center text-sm text-foreground">{Math.round(scale * 100)}%</span>
-          <Button variant="ghost" size="icon" onClick={zoomIn} title="Zoom in"><ZoomIn className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={zoomToFit} title="Fit to width" className={fitMode === 'width' ? "bg-accent" : ""}><MoveHorizontal className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={zoomToFitHeight} title="Fit to height" className={fitMode === 'height' ? "bg-accent" : ""}><MoveVertical className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={rotate} title="Rotate"><RotateCw className="h-4 w-4" /></Button>
-          <div className="mx-2 h-4 w-px bg-border" />
-          <Button variant="ghost" size={isExporting ? "sm" : "icon"} onClick={exportImage} disabled={isExporting} title="Export with filters" className={isExporting ? "gap-2" : ""}>
+        <div className="flex items-center gap-1 sm:gap-2">
+          <Button variant="ghost" size="icon" onClick={zoomOut} title="Zoom out" className="h-8 w-8 sm:h-9 sm:w-9"><ZoomOut className="h-4 w-4" /></Button>
+          <span className="min-w-[45px] sm:min-w-[60px] text-center text-xs sm:text-sm text-foreground">{Math.round(scale * 100)}%</span>
+          <Button variant="ghost" size="icon" onClick={zoomIn} title="Zoom in" className="h-8 w-8 sm:h-9 sm:w-9"><ZoomIn className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={zoomToFit} title="Fit to width" className={`h-8 w-8 sm:h-9 sm:w-9 ${fitMode === 'width' ? "bg-accent" : ""}`}><MoveHorizontal className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={zoomToFitHeight} title="Fit to height" className={`h-8 w-8 sm:h-9 sm:w-9 hidden sm:flex ${fitMode === 'height' ? "bg-accent" : ""}`}><MoveVertical className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={rotate} title="Rotate" className="h-8 w-8 sm:h-9 sm:w-9 hidden sm:flex"><RotateCw className="h-4 w-4" /></Button>
+          <div className="mx-1 sm:mx-2 h-4 w-px bg-border hidden sm:block" />
+          <Button variant="ghost" size={isExporting ? "sm" : "icon"} onClick={exportImage} disabled={isExporting} title="Export with filters" className={`h-8 w-8 sm:h-9 sm:w-9 ${isExporting ? "gap-2" : ""}`}>
             {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           </Button>
         </div>
@@ -337,11 +402,15 @@ export function ImageViewer({
       {/* Image Container */}
       <div 
         ref={containerRef} 
-        className={`flex-1 overflow-auto bg-muted/50 p-4 ${canPan ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
+        className={`flex-1 overflow-auto bg-muted/50 p-2 sm:p-4 ${canPan ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
+        style={{ touchAction: canPan ? 'none' : 'pan-y' }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
         <div className={`relative ${stretchMode ? "flex justify-center" : "inline-flex justify-center min-w-full"}`}>
           <img
